@@ -1,0 +1,4 @@
+#!/bin/sh
+cd "$(dirname $(readlink -f "$0"))/.."
+/usr/bin/env python3 -m comet.main "$@"
+exit $?
