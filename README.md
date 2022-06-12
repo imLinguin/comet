@@ -32,3 +32,26 @@ Excluding Overlay, and Cloud Sync related.
 - [ ] START_GAME_SESSION_REQUEST
 - [ ] OVERLAY_STATE_CHANGE_NOTIFICATION
 - [ ] CONFIGURE_ENVIRONMENT_REQUEST
+
+
+## How to use
+
+Currently service supports small amount of calls, but these are enough to play Gwent for example.
+
+First, you neeed to obtain data about account `access_token`, `refresh_token` and `user_id` 
+
+(for Heroic these can be found in `.config/heroic/gog_store/config.json`)
+
+### Dependencies 
+Currently the only dependency is python protocolbuffers
+
+```sh
+pip install protobuf
+```
+Alternatively you can install it using your Linux distro's package manager
+
+### Running
+```
+./bin/comet --token "<access_token>" --refresh_token "<refresh_token>" --user-id <user_id>
+```
+
