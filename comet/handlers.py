@@ -130,7 +130,7 @@ class ConnectionHandler():
         elif combinedId == message_id(SORT_COMM, GET_USER_STATS_REQUEST):
             res = self.handle_user_stats_request(message_data)
 
-        elif combinedId == message_id(SORT_COMM, GET_USER_ACHIEVEMENT_REQUEST):
+        elif combinedId == message_id(SORT_COMM, GET_USER_ACHIEVEMENTS_REQUEST):
             res = self.handle_get_user_achievements(message_data)
 
         elif combinedId == message_id(SORT_COMM, UNLOCK_USER_ACHIEVEMENT_REQUEST):
@@ -256,7 +256,7 @@ class ConnectionHandler():
         res.data = response.SerializeToString()
 
         res.header.sort = SORT_COMM
-        res.header.type = GET_USER_ACHIEVEMENT_RESPONSE
+        res.header.type = GET_USER_ACHIEVEMENTS_REQUEST
         return res
 
     def handle_unlock_user_achievement(self, data):
