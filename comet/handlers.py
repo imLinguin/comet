@@ -1,16 +1,15 @@
+import socket
+from dataclasses import dataclass
+
+from comet.api.token import TokenManager
 from comet.proto.gog.protocols import pb_pb2
 from comet.proto.galaxy.protocols import communication_service_pb2
-
-import zlib
-from enum import Enum
 
 import time
 
 
 SORT_COMM = 1
 SORT_WEBBROKER = 2
-
-UNKNOWN_MESSAGE = 0
 
 UNKNOWN_MESSAGE = 0
 LIBRARY_INFO_REQUEST = 1
@@ -62,39 +61,39 @@ SUBSCRIBE_TOPIC_REQUEST = 3
 SUBSCRIBE_TOPIC_RESPONSE = 4
 MESSAGE_FROM_TOPIC = 5
 
-class HandlerResponse():
-    def __init__(self):
-        self.header = pb_pb2.Header()
+
+@dataclass
+class HandlerResponse:
+    header = pb_pb2.Header()
 
 
-def message_id(sort, type):
-    return (sort << 16) | type
+def message_id(sort, msg_type):
+    return (sort << 16) | msg_type
 
 
-class ConnectionHandler():
-    def __init__(self, con, address, token_mgr):
-        self.connection = con
-        self.address = address
-        self.token_manager = token_mgr
-        self.data = bytes()
-        self.closed = False
+@dataclass
+class ConnectionHandler:
+    connection: socket.socket
+    address: str
+    token_manager: TokenManager
+    data = bytes()
+    closed = False
+
     def handle_conection(self):
-        header_size_bytes = bytes()
         while not self.closed:
             try:
                 header_size_bytes = self.connection.recv(2)
                 if not header_size_bytes:
                     time.sleep(0.1)
                     continue
-            except:
+            except OSError:
                 print("Error reading socket data")
                 self.closed = True
                 return
             
             self.handle_message(header_size_bytes)
 
-
-    def handle_message(self,size):
+    def handle_message(self, size):
         header_size = int.from_bytes(size, 'big')
 
         header_data = self.connection.recv(header_size)
@@ -104,12 +103,10 @@ class ConnectionHandler():
         header = pb_pb2.Header()
         header.ParseFromString(header_data)
 
-
         message_data = self.connection.recv(header.size)
-        print("Header",header)
+        print("Header", header)
 
-        combinedId = message_id(header.sort, header.type)
-        res = None
+        combined_id = message_id(header.sort, header.type)
         # ———————————No switches?———————————
         # ⠀⣞⢽⢪⢣⢣⢣⢫⡺⡵⣝⡮⣗⢷⢽⢽⢽⣮⡷⡽⣜⣜⢮⢺⣜⢷⢽⢝⡽⣝
         # ⠸⡸⠜⠕⠕⠁⢁⢇⢏⢽⢺⣪⡳⡝⣎⣏⢯⢞⡿⣟⣷⣳⢯⡷⣽⢽⢯⣳⣫⠇
@@ -125,15 +122,13 @@ class ConnectionHandler():
         # ⠀⠀⠀⡟⡾⣿⢿⢿⢵⣽⣾⣼⣘⢸⢸⣞⡟⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
         # ⠀⠀⠀⠀⠁⠇⠡⠩⡫⢿⣝⡻⡮⣒⢽⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
         # —————————————————————————————
-        if combinedId == message_id(SORT_COMM, AUTH_INFO_REQUEST):
+        if combined_id == message_id(SORT_COMM, AUTH_INFO_REQUEST):
             res = self.handle_auth_request(message_data)
-        elif combinedId == message_id(SORT_COMM, GET_USER_STATS_REQUEST):
+        elif combined_id == message_id(SORT_COMM, GET_USER_STATS_REQUEST):
             res = self.handle_user_stats_request(message_data)
-
-        elif combinedId == message_id(SORT_COMM, GET_USER_ACHIEVEMENTS_REQUEST):
+        elif combined_id == message_id(SORT_COMM, GET_USER_ACHIEVEMENTS_REQUEST):
             res = self.handle_get_user_achievements(message_data)
-
-        elif combinedId == message_id(SORT_COMM, UNLOCK_USER_ACHIEVEMENT_REQUEST):
+        elif combined_id == message_id(SORT_COMM, UNLOCK_USER_ACHIEVEMENT_REQUEST):
             res = self.handle_unlock_user_achievement(message_data)
         else:
             print("Unknown message",  header.sort, header.type)
@@ -148,7 +143,7 @@ class ConnectionHandler():
             res_header_data = res.header.SerializeToString()
             res_header_data_size = len(res_header_data).to_bytes(2, 'big')
 
-            self.connection.sendmsg([res_header_data_size,res_header_data, res.data])
+            self.connection.sendmsg([res_header_data_size, res_header_data, res.data])
 
             print("Responding with", res.header.sort, res.header.type)
             print("Header", res_header_data_size+res_header_data)
@@ -161,7 +156,6 @@ class ConnectionHandler():
         credentials = self.token_manager.obtain_token_for(msg.client_id, msg.client_secret)
         user_info = self.token_manager.get_user_info()
 
-
         res_data = communication_service_pb2.AuthInfoResponse()
 
         res_data.refresh_token = credentials["refresh_token"]
@@ -170,7 +164,6 @@ class ConnectionHandler():
         res_data.user_name = user_info["username"]
         res_data.region = 0
 
-
         res = HandlerResponse()
 
         res.data = res_data.SerializeToString()
@@ -178,12 +171,10 @@ class ConnectionHandler():
         res.header.sort = SORT_COMM
         res.header.type = AUTH_INFO_RESPONSE
         return res
-        
 
     def handle_user_stats_request(self, data):
         msg = communication_service_pb2.GetUserStatsRequest()
         msg.ParseFromString(data)
-
 
         stats = self.token_manager.get_user_stats(msg.user_id)
 
@@ -207,7 +198,7 @@ class ConnectionHandler():
                 stat_pb.int_min_value = stat.min_value.i
                 stat_pb.int_max_value = stat.max_value.i
                 stat_pb.int_max_change = stat.max_change.i
-            elif stat.stat_type ==2:
+            elif stat.stat_type == 2:
                 stat_pb.float_value = stat.value.f
                 stat_pb.float_default_value = stat.default_value.f
                 stat_pb.float_min_value = stat.min_value.f
@@ -224,7 +215,7 @@ class ConnectionHandler():
         res.header.type = GET_USER_STATS_RESPONSE
         return res
     
-    def handle_get_user_achievements(self,data):
+    def handle_get_user_achievements(self, data):
         msg = communication_service_pb2.GetUserAchievementsRequest()
         msg.ParseFromString(data)
 
@@ -249,7 +240,6 @@ class ConnectionHandler():
 
         response.language = achievements.language
         response.achievements_mode = achievements.mode
-
 
         res = HandlerResponse()
 
