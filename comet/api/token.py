@@ -18,10 +18,10 @@ def get_user_stat_type(value):
 
 
 class TokenManager:
-    def __init__(self, args):
-        self.access_token = args.token
-        self.refresh_token = args.refresh_token
-        self.user_id = args.user_id
+    def __init__(self, token, refresh_token, user_id):
+        self.access_token = token
+        self.refresh_token = refresh_token
+        self.user_id = user_id
         self.session = requests.session()
         self.session.headers = {
             "Authorization": f"Bearer {self.access_token}"
