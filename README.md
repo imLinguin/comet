@@ -54,4 +54,7 @@ Alternatively you can install it using your Linux distro's package manager
 ```
 ./bin/comet --token "<access_token>" --refresh_token "<refresh_token>" --user-id <user_id>
 ```
-
+Or if you are using heroic
+```
+./bin/comet --from-heroic
+```
