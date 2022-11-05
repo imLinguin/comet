@@ -1,9 +1,10 @@
+import logging
 import socket
 from dataclasses import dataclass
 
 from comet.api.token import TokenManager
 from comet.proto.gog.protocols import pb_pb2
-from comet.proto.galaxy.protocols import communication_service_pb2
+from comet.proto.galaxy.protocols import communication_service_pb2, webbroker_service_pb2
 
 import time
 
@@ -79,6 +80,8 @@ class ConnectionHandler:
     data = bytes()
     closed = False
 
+    logger = logging.getLogger("handler")
+
     def handle_conection(self):
         while not self.closed:
             try:
@@ -87,7 +90,7 @@ class ConnectionHandler:
                     time.sleep(0.1)
                     continue
             except OSError:
-                print("Error reading socket data")
+                self.logger.error("handle_connection:Error reading socket data")
                 self.closed = True
                 return
             
@@ -97,14 +100,12 @@ class ConnectionHandler:
         header_size = int.from_bytes(size, 'big')
 
         header_data = self.connection.recv(header_size)
-        print("Header size", header_size)
-        print("Header data", header_data.hex())
 
         header = pb_pb2.Header()
         header.ParseFromString(header_data)
 
         message_data = self.connection.recv(header.size)
-        print("Header", header)
+        self.logger.info(f"handle_message:Header {header.sort}|{header.type}")
 
         combined_id = message_id(header.sort, header.type)
         # ———————————No switches?———————————
@@ -130,8 +131,10 @@ class ConnectionHandler:
             res = self.handle_get_user_achievements(message_data)
         elif combined_id == message_id(SORT_COMM, UNLOCK_USER_ACHIEVEMENT_REQUEST):
             res = self.handle_unlock_user_achievement(message_data)
+        elif combined_id == message_id(SORT_WEBBROKER, SUBSCRIBE_TOPIC_REQUEST):
+            res = self.handle_subscribe_topic(message_data)
         else:
-            print("Unknown message",  header.sort, header.type)
+            self.logger.warning(f"handle_message:fixme:unknown call {header.sort}|{header.type}")
             print(message_data)
             return
         
@@ -145,9 +148,7 @@ class ConnectionHandler:
 
             self.connection.sendmsg([res_header_data_size, res_header_data, res.data])
 
-            print("Responding with", res.header.sort, res.header.type)
-            print("Header", res_header_data_size+res_header_data)
-            print("Sent")
+            self.logger.info(f"handle_message:responded with {res.header.sort}|{res.header.type}")
 
     def handle_auth_request(self, data):
         msg = communication_service_pb2.AuthInfoRequest()
@@ -164,6 +165,7 @@ class ConnectionHandler:
         res_data.user_name = user_info["username"]
         res_data.region = 0
 
+        self.logger.info(f"handle_auth_request:authenticated the user {user_info['username']}")
         res = HandlerResponse()
 
         res.data = res_data.SerializeToString()
@@ -171,6 +173,25 @@ class ConnectionHandler:
         res.header.sort = SORT_COMM
         res.header.type = AUTH_INFO_RESPONSE
         return res
+
+    def handle_subscribe_topic(self, data):
+        msg = webbroker_service_pb2.SubscribeTopicRequest()
+        msg.ParseFromString(data)
+
+        response = webbroker_service_pb2.SubscribeTopicResponse()
+        response.topic = msg.topic
+
+        self.logger.info(f"handle_subscribe_topic:stub:{msg.topic}")
+
+        res = HandlerResponse()
+        res.data = response.SerializeToString()
+
+        res.header.sort = SORT_WEBBROKER
+        res.header.type = SUBSCRIBE_TOPIC_RESPONSE
+
+        return res
+
+
 
     def handle_user_stats_request(self, data):
         msg = communication_service_pb2.GetUserStatsRequest()
@@ -246,7 +267,7 @@ class ConnectionHandler:
         res.data = response.SerializeToString()
 
         res.header.sort = SORT_COMM
-        res.header.type = GET_USER_ACHIEVEMENTS_REQUEST
+        res.header.type = GET_USER_ACHIEVEMENTS_RESPONSE
         return res
 
     def handle_unlock_user_achievement(self, data):

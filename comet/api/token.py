@@ -42,7 +42,7 @@ class TokenManager:
             f"refresh_token={self.refresh_token}&"
             f"without_new_session=1"
         )
-        
+
         if not response.ok:
             print("Error obtaining access token")
             return None
@@ -85,27 +85,27 @@ class TokenManager:
 
             if statObj.get('window'):
                 stat.window_size = statObj['window']
-            
+
             stat.increment_only = statObj['increment_only']
 
             if stat.stat_type == VALUETYPE_INT:
                 stat.value.i = statObj['value']
-            
+
                 if statObj.get("default_value"):
                     stat.default_value.i = statObj["default_value"]
                 else:
                     stat.default_value.i = 0
-                
+
                 if statObj.get("min_value"):
                     stat.min_value.i = statObj["min_value"]
                 else:
                     stat.min_value.i = 0
-                
+
                 if statObj.get("max_value"):
                     stat.max_value.i = statObj["max_value"]
                 else:
                     stat.max_value.i = 1000000
-                
+
                 if statObj["max_change"]:
                     stat.max_change.i = statObj["max_change"]
                 else:
@@ -113,7 +113,7 @@ class TokenManager:
 
             stats_list.append(stat)
         return stats_list
-    
+
     def get_user_achievements(self, user_id):
         token = self.tokens.get(self.client_id)
         if not token:
@@ -141,10 +141,10 @@ class TokenManager:
             if type(achievement_obj["date_unlocked"]) == str:
                 date_str = achievement_obj["date_unlocked"]
                 time = datetime.datetime.fromisoformat(date_str)
-                achievement.unlock_time = time.timestamp()*1000
+                achievement.unlock_time = time.timestamp() * 1000
             else:
                 achievement.unlock_time = 0
-            
+
             achievement.rarity = achievement_obj["rarity"]
             achievement.rarity_desc = achievement_obj["rarity_level_description"]
             achievement.rarity_slug = achievement_obj["rarity_level_slug"]
@@ -161,7 +161,7 @@ class TokenManager:
             return
         payload = {
             "date_unlocked": datetime.datetime.fromtimestamp(
-                time/1000, tz=LOCAL_TIMEZONE
+                time / 1000, tz=LOCAL_TIMEZONE
             ).astimezone(datetime.timezone.utc).isoformat(timespec="seconds")
         }
 
@@ -174,5 +174,5 @@ class TokenManager:
         if not response.ok:
             print("Error unlocking user achievement")
             return False
-        
+
         return True
