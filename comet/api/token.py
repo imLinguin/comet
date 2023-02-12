@@ -1,7 +1,12 @@
 import datetime
+import json
 
 import requests
+from urllib import parse
 
+from comet.proto.galaxy.protocols import communication_service_pb2
+
+from comet.classes.leaderboards import LeaderboardDefinition, LeaderboardEntry
 from comet.classes.achievement import UserAchievement, UserAchievementList
 from comet.classes.user_stats import GogUserStat, VALUETYPE_INT, VALUETYPE_FLOAT
 
@@ -58,6 +63,17 @@ class TokenManager:
             return None
 
         return response.json()
+
+    def get_info_for_users(self, ids):
+        string_ids = ",".join(ids)
+
+        url = f"https://users.gog.com/users?ids={string_ids}"
+
+        token = self.tokens.get(self.client_id)
+
+        res = self.session.get(url, headers={"Authorization": f"Bearer {token['access_token']}"})
+
+        return res.json()["items"]
 
     def get_user_stats(self, user_id):
         token = self.tokens.get(self.client_id)
@@ -159,10 +175,16 @@ class TokenManager:
         if not token:
             print("Error, user achievement unlock requested before token")
             return
+
+        date_unlocked = None
+
+        if time != 0:
+            date_unlocked = datetime.datetime.fromtimestamp(time / 1000, tz=LOCAL_TIMEZONE).astimezone(
+                datetime.timezone.utc).strftime(
+                "%Y-%m-%dT%H:%M:%S+0000")
+
         payload = {
-            "date_unlocked": datetime.datetime.fromtimestamp(
-                time / 1000, tz=LOCAL_TIMEZONE
-            ).astimezone(datetime.timezone.utc).isoformat(timespec="seconds")
+            "date_unlocked": date_unlocked
         }
 
         response = self.session.post(
@@ -176,3 +198,80 @@ class TokenManager:
             return False
 
         return True
+
+    def get_leaderboards(self):
+        request_url = f"https://gameplay.gog.com/clients/{self.client_id}/leaderboards"
+
+        token = self.tokens.get(self.client_id)
+        response = self.session.get(request_url, headers={'Authorization': f'Bearer {token["access_token"]}'})
+
+        data = response.json()
+
+        leaderboards_definitions = list()
+        for leaderboard in data["items"]:
+            definition = LeaderboardDefinition()
+            definition.leaderboard_id = int(leaderboard["id"])
+            definition.name = leaderboard["name"]
+            definition.key = leaderboard["key"]
+
+            l_sort_method = leaderboard["sort_method"]
+            definition.sort_method = communication_service_pb2.SortMethod.SORT_METHOD_UNDEFINED
+            if l_sort_method == "desc":
+                definition.sort_method = communication_service_pb2.SortMethod.SORT_METHOD_DESCENDING
+            elif l_sort_method == "asc":
+                definition.sort_method = communication_service_pb2.SortMethod.SORT_METHOD_ASCENDING
+
+            l_display_type = leaderboard["display_type"]
+            definition.display_type = communication_service_pb2.DisplayType.DISPLAY_TYPE_UNDEFINED
+
+            if l_display_type == "numeric":
+                definition.display_type = communication_service_pb2.DisplayType.DISPLAY_TYPE_NUMERIC
+            elif l_display_type == "time_seconds":
+                definition.display_type = communication_service_pb2.DisplayType.DISPLAY_TYPE_TIME_SECONDS
+            elif l_display_type == "time_milliseconds":
+                definition.display_type = communication_service_pb2.DisplayType.DISPLAY_TYPE_TIME_MILLISECONDS
+
+            leaderboards_definitions.append(definition)
+
+        return leaderboards_definitions
+
+    def get_leaderboard_entries(self, leaderboard_id, range_start=None, range_end=None, user_id=None, count_before=None,
+                                count_after=None):
+
+        params = dict()
+
+        if range_start is not None:
+            params['range_start'] = range_start
+        if range_end is not None:
+            params['range_end'] = range_end
+        if user_id is not None:
+            params['user'] = user_id
+        if count_after is not None:
+            params['count_after'] = count_after
+        if count_before is not None:
+            params['count_before'] = count_before
+
+        url = f"https://gameplay.gog.com/clients/{self.client_id}/leaderboards/{leaderboard_id}/entries?"
+        url = url + parse.urlencode(params)
+
+        print(url)
+
+        token = self.tokens.get(self.client_id)
+        response = self.session.get(url, headers={'Authorization': f"Bearer {token['access_token']}"})
+
+        if not response.ok:
+            return [], 0, response.status_code
+
+        data = response.json()
+
+        leaderboard_entries = list()
+        for entry in data['items']:
+            leaderboard_entry = LeaderboardEntry()
+            # Protobuf encoding: I64 fixed64, sfixed64, double
+            # FIXME: figure out this encoding, and why it's needed
+            leaderboard_entry.user_id = 0x200000000000000 | int(entry["user_id"])
+            leaderboard_entry.rank = int(entry["rank"])
+            leaderboard_entry.score = int(entry["score"])
+
+            leaderboard_entries.append(leaderboard_entry)
+        return leaderboard_entries, data['leaderboard_entry_total_count'], response.status_code

@@ -31,7 +31,7 @@ def load_heroic_config():
     file.close()
     json_data = json.loads(data)
     return json_data["credentials"]["access_token"], json_data["credentials"]["refresh_token"], \
-           json_data["credentials"]["user_id"]
+        json_data["credentials"]["user_id"]
 
 
 parser = argparse.ArgumentParser()
@@ -49,6 +49,7 @@ HOST = 'localhost'
 PORT = 9977
 
 soc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+soc.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
 try:
     soc.bind((HOST, PORT))

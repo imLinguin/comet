@@ -8,7 +8,6 @@ from comet.proto.galaxy.protocols import communication_service_pb2, webbroker_se
 
 import time
 
-
 SORT_COMM = 1
 SORT_WEBBROKER = 2
 
@@ -66,6 +65,7 @@ MESSAGE_FROM_TOPIC = 5
 @dataclass
 class HandlerResponse:
     header = pb_pb2.Header()
+    data = bytes()
 
 
 def message_id(sort, msg_type):
@@ -93,8 +93,12 @@ class ConnectionHandler:
                 self.logger.error("handle_connection:Error reading socket data")
                 self.closed = True
                 return
-            
-            self.handle_message(header_size_bytes)
+
+            try:
+                self.handle_message(header_size_bytes)
+            except:
+                self.connection.close()
+                raise
 
     def handle_message(self, size):
         header_size = int.from_bytes(size, 'big')
@@ -131,17 +135,25 @@ class ConnectionHandler:
             res = self.handle_get_user_achievements(message_data)
         elif combined_id == message_id(SORT_COMM, UNLOCK_USER_ACHIEVEMENT_REQUEST):
             res = self.handle_unlock_user_achievement(message_data)
+        elif combined_id == message_id(SORT_COMM, CLEAR_USER_ACHIEVEMENT_REQUEST):
+            res = self.handle_clear_user_achievement(message_data)
+        elif combined_id == message_id(SORT_COMM, GET_LEADERBOARDS_REQUEST):
+            res = self.handle_get_leaderboards(message_data)
+        elif combined_id == message_id(SORT_COMM, GET_LEADERBOARD_ENTRIES_GLOBAL_REQUEST):
+            res = self.handle_get_leaderboard_entries_global(message_data)
+        elif combined_id == message_id(SORT_COMM, GET_LEADERBOARD_ENTRIES_AROUND_USER_REQUEST):
+            res = self.handle_get_leaderboard_entries_arround_user(message_data)
         elif combined_id == message_id(SORT_WEBBROKER, SUBSCRIBE_TOPIC_REQUEST):
             res = self.handle_subscribe_topic(message_data)
         else:
             self.logger.warning(f"handle_message:fixme:unknown call {header.sort}|{header.type}")
             print(message_data)
             return
-        
+
         if res:
             res.header.size = len(res.data)
             if header.HasField("oseq"):
-                res.header.Extensions[pb_pb2.Response.rseq] = header.oseq 
+                res.header.Extensions[pb_pb2.Response.rseq] = header.oseq
 
             res_header_data = res.header.SerializeToString()
             res_header_data_size = len(res_header_data).to_bytes(2, 'big')
@@ -191,8 +203,6 @@ class ConnectionHandler:
 
         return res
 
-
-
     def handle_user_stats_request(self, data):
         msg = communication_service_pb2.GetUserStatsRequest()
         msg.ParseFromString(data)
@@ -226,7 +236,7 @@ class ConnectionHandler:
                 stat_pb.float_max_value = stat.max_value.f
                 stat_pb.float_max_change = stat.max_change.f
 
-            response.user_stats.append(stat_pb)         
+            response.user_stats.append(stat_pb)
 
         res = HandlerResponse()
 
@@ -235,7 +245,7 @@ class ConnectionHandler:
         res.header.sort = SORT_COMM
         res.header.type = GET_USER_STATS_RESPONSE
         return res
-    
+
     def handle_get_user_achievements(self, data):
         msg = communication_service_pb2.GetUserAchievementsRequest()
         msg.ParseFromString(data)
@@ -282,4 +292,107 @@ class ConnectionHandler:
 
         res.header.sort = SORT_COMM
         res.header.type = UNLOCK_USER_ACHIEVEMENT_RESPONSE
+        return res
+
+    def handle_clear_user_achievement(self, data):
+        msg = communication_service_pb2.ClearUserAchievementRequest()
+        msg.ParseFromString(data)
+
+        self.token_manager.set_user_achievement(msg.achievement_id, 0)
+        res = HandlerResponse()
+
+        res.data = bytes()
+
+        res.header.sort = SORT_COMM
+        res.header.type = CLEAR_USER_ACHIEVEMENT_RESPONSE
+        return res
+
+    def handle_get_leaderboards(self, data):
+        leaderboards = self.token_manager.get_leaderboards()
+
+        leaderboards_data = communication_service_pb2.GetLeaderboardsResponse()
+        for leaderboard in leaderboards:
+            pb_leaderboard = communication_service_pb2.GetLeaderboardsResponse.LeaderboardDefinition()
+
+            pb_leaderboard.leaderboard_id = leaderboard.leaderboard_id
+            pb_leaderboard.key = leaderboard.key
+            pb_leaderboard.name = leaderboard.name
+            pb_leaderboard.sort_method = leaderboard.sort_method
+            pb_leaderboard.display_type = leaderboard.display_type
+
+            leaderboards_data.leaderboard_definitions.append(pb_leaderboard)
+
+        res = HandlerResponse()
+        res.data = leaderboards_data.SerializeToString()
+
+        res.header.sort = SORT_COMM
+        res.header.type = GET_LEADERBOARDS_RESPONSE
+
+        return res
+
+    def __prepare_leaderboard_entries_response(self, entries):
+        leaderboards_entries_res = communication_service_pb2.GetLeaderboardEntriesResponse()
+        for entry in entries:
+            pb_entry = communication_service_pb2.GetLeaderboardEntriesResponse.LeaderboardEntry()
+            pb_entry.rank = entry.rank
+            pb_entry.score = entry.score
+            pb_entry.user_id = entry.user_id
+            leaderboards_entries_res.leaderboard_entries.append(pb_entry)
+
+        return leaderboards_entries_res
+
+    def handle_get_leaderboard_entries_global(self, data):
+        msg = communication_service_pb2.GetLeaderboardEntriesGlobalRequest()
+        msg.ParseFromString(data)
+
+        entries, total, status = self.token_manager.get_leaderboard_entries(msg.leaderboard_id,
+                                                                            range_start=msg.range_start,
+                                                                            range_end=msg.range_end)
+
+        res = HandlerResponse()
+        res.data = bytes()
+
+        res.header.sort = SORT_COMM
+        res.header.type = GET_LEADERBOARD_ENTRIES_RESPONSE
+
+        if not entries:
+            self.logger.info(f"leaderboards:status code:{status}")
+            res.header.Extensions[pb_pb2.Response.code] = status
+            return res
+
+        leaderboards_entries_res = self.__prepare_leaderboard_entries_response(entries)
+
+        leaderboards_entries_res.leaderboard_entry_total_count = total
+
+        res.data = leaderboards_entries_res.SerializeToString()
+
+        return res
+
+    def handle_get_leaderboard_entries_arround_user(self, data):
+        msg = communication_service_pb2.GetLeaderboardEntriesAroundUserRequest()
+        msg.ParseFromString(data)
+
+        user_id = int(bin(msg.user_id)[4:], 2)  # Stip first two bits see token_manager.get_leaderboard_entries
+
+        entries, total, status = self.token_manager.get_leaderboard_entries(msg.leaderboard_id, user_id=user_id,
+                                                                            count_before=msg.count_before,
+                                                                            count_after=msg.count_after)
+
+        res = HandlerResponse()
+        res.data = bytes()
+
+        res.header.sort = SORT_COMM
+        res.header.type = GET_LEADERBOARD_ENTRIES_RESPONSE
+
+        if not entries:
+            self.logger.info(f"leaderboards:status code:{status}")
+            res.header.Extensions[pb_pb2.Response.code] = status
+            return res
+
+        leaderboards_entries_res = self.__prepare_leaderboard_entries_response(entries)
+
+        leaderboards_entries_res.leaderboard_entry_total_count = total
+
+        res.data = leaderboards_entries_res.SerializeToString()
+
         return res
