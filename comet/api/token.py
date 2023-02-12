@@ -130,6 +130,17 @@ class TokenManager:
             stats_list.append(stat)
         return stats_list
 
+    def delete_user_stats(self):
+        token = self.tokens.get(self.client_id)
+
+        response = self.session.delete(
+            f"https://gameplay.gog.com/clients/{self.client_id}/users/{self.user_id}/stats",
+            headers={'Authorization': f"Bearer {token['access_token']}"})
+
+        if not response.ok:
+            print("Error deleting achievements")
+        return response.status_code
+
     def get_user_achievements(self, user_id):
         token = self.tokens.get(self.client_id)
         if not token:
@@ -157,7 +168,7 @@ class TokenManager:
             if type(achievement_obj["date_unlocked"]) == str:
                 date_str = achievement_obj["date_unlocked"]
                 time = datetime.datetime.fromisoformat(date_str)
-                achievement.unlock_time = time.timestamp() * 1000
+                achievement.unlock_time = int(time.timestamp())
             else:
                 achievement.unlock_time = 0
 
@@ -179,7 +190,7 @@ class TokenManager:
         date_unlocked = None
 
         if time != 0:
-            date_unlocked = datetime.datetime.fromtimestamp(time / 1000, tz=LOCAL_TIMEZONE).astimezone(
+            date_unlocked = datetime.datetime.fromtimestamp(time, tz=LOCAL_TIMEZONE).astimezone(
                 datetime.timezone.utc).strftime(
                 "%Y-%m-%dT%H:%M:%S+0000")
 
@@ -189,15 +200,28 @@ class TokenManager:
 
         response = self.session.post(
             f"https://gameplay.gog.com/clients/{self.client_id}/users/{self.user_id}/achievements/{ach_id}",
-            data=payload,
+            json=payload,
             headers={'Authorization': f'Bearer {token["access_token"]}'}
         )
 
         if not response.ok:
             print("Error unlocking user achievement")
+            print(response.content)
             return False
 
         return True
+
+    def delete_user_achievements(self):
+        token = self.tokens.get(self.client_id)
+
+        response = self.session.delete(
+            f"https://gameplay.gog.com/clients/{self.client_id}/users/{self.user_id}/achievements",
+            headers={'Authorization': f"Bearer {token['access_token']}"})
+
+        if not response.ok:
+            print("Error deleting achievements")
+            return response.status_code
+        return 202
 
     def get_leaderboards(self):
         request_url = f"https://gameplay.gog.com/clients/{self.client_id}/leaderboards"

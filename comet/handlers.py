@@ -131,6 +131,8 @@ class ConnectionHandler:
             res = self.handle_auth_request(message_data)
         elif combined_id == message_id(SORT_COMM, GET_USER_STATS_REQUEST):
             res = self.handle_user_stats_request(message_data)
+        elif combined_id == message_id(SORT_COMM, DELETE_USER_STATS_REQUEST):
+            res = self.handle_delete_user_stats(message_data)
         elif combined_id == message_id(SORT_COMM, GET_USER_ACHIEVEMENTS_REQUEST):
             res = self.handle_get_user_achievements(message_data)
         elif combined_id == message_id(SORT_COMM, UNLOCK_USER_ACHIEVEMENT_REQUEST):
@@ -139,6 +141,8 @@ class ConnectionHandler:
             res = self.handle_clear_user_achievement(message_data)
         elif combined_id == message_id(SORT_COMM, GET_LEADERBOARDS_REQUEST):
             res = self.handle_get_leaderboards(message_data)
+        elif combined_id == message_id(SORT_COMM, DELETE_USER_ACHIEVEMENTS_REQUEST):
+            res = self.handle_delete_user_achievement(message_data)
         elif combined_id == message_id(SORT_COMM, GET_LEADERBOARD_ENTRIES_GLOBAL_REQUEST):
             res = self.handle_get_leaderboard_entries_global(message_data)
         elif combined_id == message_id(SORT_COMM, GET_LEADERBOARD_ENTRIES_AROUND_USER_REQUEST):
@@ -246,11 +250,24 @@ class ConnectionHandler:
         res.header.type = GET_USER_STATS_RESPONSE
         return res
 
+    def handle_delete_user_stats(self, data):
+        status = self.token_manager.delete_user_stats()
+        res = HandlerResponse()
+
+        res.header.sort = SORT_COMM
+        res.header.type = DELETE_USER_STATS_RESPONSE
+
+        res.data = bytes()
+        res.header.Extensions[pb_pb2.Response.code] = status
+
+        return res
+
     def handle_get_user_achievements(self, data):
         msg = communication_service_pb2.GetUserAchievementsRequest()
         msg.ParseFromString(data)
 
-        achievements = self.token_manager.get_user_achievements(msg.user_id)
+        user_id = int(bin(msg.user_id)[4:], 2)  # Stip first two bits see token_manager.get_leaderboard_entries
+        achievements = self.token_manager.get_user_achievements(user_id)
 
         response = communication_service_pb2.GetUserAchievementsResponse()
         for achievement in achievements.items:
@@ -268,6 +285,7 @@ class ConnectionHandler:
             achievement_pb.rarity = achievement.rarity
             achievement_pb.rarity_level_description = achievement.rarity_desc
             achievement_pb.rarity_level_slug = achievement.rarity_slug
+            response.user_achievements.append(achievement_pb)
 
         response.language = achievements.language
         response.achievements_mode = achievements.mode
@@ -278,6 +296,18 @@ class ConnectionHandler:
 
         res.header.sort = SORT_COMM
         res.header.type = GET_USER_ACHIEVEMENTS_RESPONSE
+        return res
+
+    def handle_delete_user_achievement(self, data):
+        status = self.token_manager.delete_user_achievements()
+        res = HandlerResponse()
+
+        res.header.sort = SORT_COMM
+        res.header.type = DELETE_USER_ACHIEVEMENTS_RESPONSE
+
+        res.data = bytes()
+        res.header.Extensions[pb_pb2.Response.code] = status
+
         return res
 
     def handle_unlock_user_achievement(self, data):
