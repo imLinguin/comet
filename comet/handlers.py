@@ -177,7 +177,7 @@ class ConnectionHandler:
 
         res_data.refresh_token = credentials["refresh_token"]
         res_data.environment_type = 0
-        res_data.user_id = int(user_info["userId"])
+        res_data.user_id = int(user_info["galaxyUserId"])
         res_data.user_name = user_info["username"]
         res_data.region = 0
 
@@ -211,7 +211,8 @@ class ConnectionHandler:
         msg = communication_service_pb2.GetUserStatsRequest()
         msg.ParseFromString(data)
 
-        stats = self.token_manager.get_user_stats(msg.user_id)
+        user_id = int(bin(msg.user_id)[4:], 2)  # Stip first two bits see token_manager.get_leaderboard_entries
+        stats = self.token_manager.get_user_stats(user_id)
 
         if not stats:
             return None
