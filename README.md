@@ -2,7 +2,10 @@
 
 Open Source implementation of GOG Galaxy's Communication Service
 
-This project aims to implement calls made by game through SDK.
+This project aims to implement calls made by game through SDK.  
+Note: that means it can't and won't replace Communication Service in official client
+
+This will provide minimal and platform agnostic SDK. For use in game launchers like Heroic or Lutris
 
 Project is continuation of Yepoleb's work [https://gitlab.com/Yepoleb/comet/](https://gitlab.com/Yepoleb/comet/) but in
 Python
@@ -14,7 +17,7 @@ Excluding Overlay, and Cloud Sync related.
 - [x] AUTH_INFO_REQUEST
 - [x] GET_USER_STATS_REQUEST
 - [x] SUBSCRIBE_TOPIC_REQUEST
-- [ ] UPDATE_USER_STAT_REQUEST
+- [x] UPDATE_USER_STAT_REQUEST
 - [x] DELETE_USER_STATS_REQUEST
 - [ ] GET_GLOBAL_STATS_REQUEST
 - [x] GET_USER_ACHIEVEMENTS_REQUEST
@@ -39,6 +42,13 @@ Excluding Overlay, and Cloud Sync related.
 
 - SUBSCRIBE_TOPIC_REQUEST (respond with success but comet won't send any events that this request subscribes to)
 
+## Experimental support
+
+Following requests are supported experimentally (they haven't been tested well)
+
+- UPDATE_USER_STAT_REQUEST - no testing
+- UNLOCK_USER_ACHIEVEMENT_REQUEST - able to avoid unlocking the achievement again (unsure about response status code)
+
 ## How to use
 
 Currently service supports small amount of calls, but these are enough to play Gwent for example.
@@ -49,10 +59,10 @@ First, you neeed to obtain data about account `access_token`, `refresh_token` an
 
 ### Dependencies
 
-Currently the only dependency is python protocolbuffers
+Currently the only dependency is python protocolbuffers and requests
 
 ```sh
-pip install protobuf
+pip install protobuf requests
 ```
 
 Alternatively you can install it using your Linux distro's package manager
@@ -68,3 +78,13 @@ Or if you are using heroic
 ```
 ./bin/comet --from-heroic
 ```
+
+## Contributing
+
+Join [Heroic Discord](https://discord.gg/rHJ2uqdquK) and reach out to us on
+special [thread](https://discord.com/channels/812703221789097985/1074048840958742648)
+
+[Here](https://imlinguin.vercel.app/blog/galaxy-comm-serv-re-setup) you can find a blog post about setting up
+environment for tracing the Communication Service calls (involving Proxifier and custom mitmproxy)
+
+Reverse engineered protobuf definitions are available here: https://github.com/Yepoleb/gog_protocols
