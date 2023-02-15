@@ -83,17 +83,40 @@ class ConnectionHandler:
     logger = logging.getLogger("handler")
 
     def handle_conection(self):
+        self.connection.settimeout(5)  # Set socket timeout to 5
         while not self.closed:
             try:
                 header_size_bytes = self.connection.recv(2)
-                if not header_size_bytes:
-                    time.sleep(0.1)
-                    continue
-            except OSError:
-                self.logger.error("handle_connection:Error reading socket data")
+            except socket.timeout as e:
+                # Check for token status while we don't need to handle anything from the socket
+                # TODO: Check if this behaviour happens in Galaxy (sessions longer than 1h)
+                # if self.token_manager.client_id:
+                #     refreshed, token = self.token_manager.refresh_token_for(self.token_manager.client_id,
+                #                                                             self.token_manager.client_secret)
+                #     if refreshed:
+                #         msg = HandlerResponse()
+                #         msg.header.sort = SORT_COMM
+                #         msg.header.type = AUTH_STATE_CHANGE_NOTIFICATION
+                #
+                #         content = communication_service_pb2.AuthStateChangeNotification()
+                #         content.refresh_token = token['refresh_token']
+                #         msg.data = content.SerializeToString()
+                #
+                #         msg.header.size = len(msg.data)
+                #         res_header_data = msg.header.SerializeToString()
+                #         res_header_data_size = len(res_header_data).to_bytes(2, 'big')
+                #
+                #         self.connection.sendmsg([res_header_data_size, res_header_data, msg.data])
+                continue
+            except socket.error as e:
+                self.logger.error(f"handle_connection:Error reading socket data {e}")
                 self.closed = True
                 return
-
+            if not header_size_bytes:
+                self.connection.close()
+                self.closed = True
+                exit(0)
+                return
             try:
                 self.handle_message(header_size_bytes)
             except:
@@ -131,6 +154,8 @@ class ConnectionHandler:
             res = self.handle_auth_request(message_data)
         elif combined_id == message_id(SORT_COMM, GET_USER_STATS_REQUEST):
             res = self.handle_user_stats_request(message_data)
+        elif combined_id == message_id(SORT_COMM, UPDATE_USER_STAT_REQUEST):
+            res = self.handle_update_user_stat(message_data)
         elif combined_id == message_id(SORT_COMM, DELETE_USER_STATS_REQUEST):
             res = self.handle_delete_user_stats(message_data)
         elif combined_id == message_id(SORT_COMM, GET_USER_ACHIEVEMENTS_REQUEST):
@@ -167,6 +192,7 @@ class ConnectionHandler:
             self.logger.info(f"handle_message:responded with {res.header.sort}|{res.header.type}")
 
     def handle_auth_request(self, data):
+        # TODO: Gracefuly refuse authenticationwhen there is no Internet or user doesn't own a game
         msg = communication_service_pb2.AuthInfoRequest()
         msg.ParseFromString(data)
 
@@ -204,6 +230,31 @@ class ConnectionHandler:
 
         res.header.sort = SORT_WEBBROKER
         res.header.type = SUBSCRIBE_TOPIC_RESPONSE
+
+        return res
+
+    def handle_update_user_stat(self, data):
+        msg = communication_service_pb2.UpdateUserStatRequest()
+        msg.ParseFromString(data)
+        value = None
+
+        if msg.value_type == 1:  # INT
+            value = msg.int_value
+        elif msg.value_type == 2:  # FLOAT
+            value = msg.float_value
+
+        self.logger.info(f"update_user_stat:setting stat:{msg.stat_id}:{value}")
+        is_ok, status = self.token_manager.update_user_stat(msg.stat_id, value)
+
+        res = HandlerResponse()
+
+        res.data = bytes()
+
+        res.header.sort = SORT_COMM
+        res.header.type = UPDATE_USER_STAT_RESPONSE
+
+        if not is_ok:
+            res.header.Extensions[pb_pb2.Response.code] = status
 
         return res
 
@@ -315,10 +366,15 @@ class ConnectionHandler:
         msg = communication_service_pb2.UnlockUserAchievementRequest()
         msg.ParseFromString(data)
 
-        self.token_manager.set_user_achievement(msg.achievement_id, msg.time)
-
+        self.logger.info(f"unlock_user_achievement:setting:{msg.achievement_id}:{msg.time}")
+        is_unlocked, is_ok = self.token_manager.set_user_achievement(msg.achievement_id, msg.time)
         res = HandlerResponse()
 
+        if is_unlocked:
+            self.logger.info("unlock_user_archievement:already set")
+            res.header.Extensions[pb_pb2.Response.code] = 403  # FIXME: Verify status code with galaxy's behaviour
+        else:
+            self.token_manager.get_user_achievements(self.token_manager.user_id)
         res.data = bytes()
 
         res.header.sort = SORT_COMM
@@ -329,7 +385,9 @@ class ConnectionHandler:
         msg = communication_service_pb2.ClearUserAchievementRequest()
         msg.ParseFromString(data)
 
+        self.logger.info(f"clear_user_achievement:clearing:{msg.achievement_id}")
         self.token_manager.set_user_achievement(msg.achievement_id, 0)
+        self.token_manager.get_user_achievements(self.token_manager.user_id)
         res = HandlerResponse()
 
         res.data = bytes()

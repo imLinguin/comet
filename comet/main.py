@@ -67,8 +67,8 @@ else:
 
 logger.info(f"started listening on port {PORT}")
 token_mgr = TokenManager(token, refresh_token, user_id)
+soc.listen(5)
 while True:
-    soc.listen(5)
     con, address = None, None
     try:
         con, address = soc.accept()

@@ -1,4 +1,5 @@
 import datetime
+import time
 import json
 
 import requests
@@ -33,6 +34,7 @@ class TokenManager:
         }
 
         self.tokens = dict()
+        self.achievements = list()
         self.client_id = None
         self.client_secret = None
 
@@ -52,8 +54,31 @@ class TokenManager:
             print("Error obtaining access token")
             return None
         json_data = response.json()
+        json_data["comet_obtain_time"] = time.time()
         self.tokens[client_id] = json_data
         return json_data
+
+    def refresh_token_for(self, client_id, client_secret):
+        token = self.tokens[client_id]
+        if token['comet_obtain_time'] + token["expires_in"] >= time.time():
+            return False, None
+
+        response = self.session.get(
+            f"https://auth.gog.com/token?"
+            f"client_id={client_id}&"
+            f"client_secret={client_secret}&"
+            f"grant_type=refresh_token&"
+            f"refresh_token={token['refresh_token']}&"
+            f"without_new_session=1"
+        )
+
+        if not response.ok:
+            print("Error refreshing access token")
+            return False, None
+        json_data = response.json()
+        json_data["comet_obtain_time"] = time.time()
+        self.tokens[client_id] = json_data
+        return True, json_data
 
     def get_user_info(self):
         response = self.session.get("https://embed.gog.com/userData.json")
@@ -130,6 +155,17 @@ class TokenManager:
             stats_list.append(stat)
         return stats_list
 
+    def update_user_stat(self, stat_id, value):
+        token = self.tokens.get(self.client_id)
+        response = self.session.post(
+            f"https://gameplay.gog.com/clients/{self.client_id}/users/{self.user_id}/stats/{stat_id}",
+            json={
+                'value': value
+            },
+
+            headers={'Authorization': f"Bearer {token['access_token']}"})
+        return response.ok, response.status_code
+
     def delete_user_stats(self):
         token = self.tokens.get(self.client_id)
 
@@ -139,7 +175,8 @@ class TokenManager:
 
         if not response.ok:
             print("Error deleting achievements")
-        return response.status_code
+            return response.status_code
+        return 202
 
     def get_user_achievements(self, user_id):
         token = self.tokens.get(self.client_id)
@@ -153,6 +190,7 @@ class TokenManager:
 
         json_data = response.json()
         achievement_array = json_data['items']
+        self.achievements = achievement_array
         achievements = UserAchievementList()
         for achievement_obj in achievement_array:
             achievement = UserAchievement()
@@ -167,7 +205,7 @@ class TokenManager:
 
             if type(achievement_obj["date_unlocked"]) == str:
                 date_str = achievement_obj["date_unlocked"]
-                time = datetime.datetime.fromisoformat(date_str)
+                time = datetime.datetime.fromisoformat(date_str.replace("+0000", "+00:00"))
                 achievement.unlock_time = int(time.timestamp())
             else:
                 achievement.unlock_time = 0
@@ -186,6 +224,17 @@ class TokenManager:
         if not token:
             print("Error, user achievement unlock requested before token")
             return
+
+        is_unlocked_already = False
+
+        # Prevent setting achievements again
+        if time != 0:
+            for achievement in self.achievements:
+                if int(achievement["achievement_id"]) == ach_id:
+                    is_unlocked_already = type(achievement["date_unlocked"]) == str
+
+        if is_unlocked_already:
+            return True, True
 
         date_unlocked = None
 
@@ -207,9 +256,9 @@ class TokenManager:
         if not response.ok:
             print("Error unlocking user achievement")
             print(response.content)
-            return False
+            return False, False
 
-        return True
+        return False, True  # is_unlocked, is_ok
 
     def delete_user_achievements(self):
         token = self.tokens.get(self.client_id)
