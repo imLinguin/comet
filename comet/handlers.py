@@ -1,8 +1,10 @@
+import asyncio
 import logging
 import socket
 from dataclasses import dataclass
 
 from comet.api.token import TokenManager
+from comet.api.notification_pusher import NotificationPusher
 from comet.proto.gog.protocols import pb_pb2
 from comet.proto.galaxy.protocols import communication_service_pb2, webbroker_service_pb2
 
@@ -77,17 +79,24 @@ class ConnectionHandler:
     connection: socket.socket
     address: str
     token_manager: TokenManager
+    notification_pusher: NotificationPusher
     data = bytes()
     closed = False
 
     logger = logging.getLogger("handler")
 
-    def handle_conection(self):
-        self.connection.settimeout(5)  # Set socket timeout to 5
+    async def handle_connection(self):
+        await self.token_manager.setup()
+        await self.notification_pusher.setup()
+
+        asyncio.create_task(self.notification_pusher.handle(self.connection))
+
+        self.connection.settimeout(2)  # Set socket timeout to 2
         while not self.closed:
             try:
                 header_size_bytes = self.connection.recv(2)
             except socket.timeout as e:
+                await asyncio.sleep(0.5)
                 # Check for token status while we don't need to handle anything from the socket
                 # TODO: Check if this behaviour happens in Galaxy (sessions longer than 1h)
                 # if self.token_manager.client_id:
@@ -114,16 +123,15 @@ class ConnectionHandler:
                 return
             if not header_size_bytes:
                 self.connection.close()
+                await self.token_manager.session.close()
+                await self.notification_pusher.close()
                 self.closed = True
-                exit(0)
                 return
-            try:
-                self.handle_message(header_size_bytes)
-            except:
-                self.connection.close()
-                raise
 
-    def handle_message(self, size):
+            await self.handle_message(header_size_bytes)
+            await asyncio.sleep(0.5)
+
+    async def handle_message(self, size):
         header_size = int.from_bytes(size, 'big')
 
         header_data = self.connection.recv(header_size)
@@ -151,29 +159,29 @@ class ConnectionHandler:
         # ⠀⠀⠀⠀⠁⠇⠡⠩⡫⢿⣝⡻⡮⣒⢽⠋⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
         # —————————————————————————————
         if combined_id == message_id(SORT_COMM, AUTH_INFO_REQUEST):
-            res = self.handle_auth_request(message_data)
+            res = await self.handle_auth_request(message_data)
         elif combined_id == message_id(SORT_COMM, GET_USER_STATS_REQUEST):
-            res = self.handle_user_stats_request(message_data)
+            res = await self.handle_user_stats_request(message_data)
         elif combined_id == message_id(SORT_COMM, UPDATE_USER_STAT_REQUEST):
-            res = self.handle_update_user_stat(message_data)
+            res = await self.handle_update_user_stat(message_data)
         elif combined_id == message_id(SORT_COMM, DELETE_USER_STATS_REQUEST):
-            res = self.handle_delete_user_stats(message_data)
+            res = await self.handle_delete_user_stats(message_data)
         elif combined_id == message_id(SORT_COMM, GET_USER_ACHIEVEMENTS_REQUEST):
-            res = self.handle_get_user_achievements(message_data)
+            res = await self.handle_get_user_achievements(message_data)
         elif combined_id == message_id(SORT_COMM, UNLOCK_USER_ACHIEVEMENT_REQUEST):
-            res = self.handle_unlock_user_achievement(message_data)
+            res = await self.handle_unlock_user_achievement(message_data)
         elif combined_id == message_id(SORT_COMM, CLEAR_USER_ACHIEVEMENT_REQUEST):
-            res = self.handle_clear_user_achievement(message_data)
+            res = await self.handle_clear_user_achievement(message_data)
         elif combined_id == message_id(SORT_COMM, GET_LEADERBOARDS_REQUEST):
-            res = self.handle_get_leaderboards(message_data)
+            res = await self.handle_get_leaderboards(message_data)
         elif combined_id == message_id(SORT_COMM, DELETE_USER_ACHIEVEMENTS_REQUEST):
-            res = self.handle_delete_user_achievement(message_data)
+            res = await self.handle_delete_user_achievement(message_data)
         elif combined_id == message_id(SORT_COMM, GET_LEADERBOARD_ENTRIES_GLOBAL_REQUEST):
-            res = self.handle_get_leaderboard_entries_global(message_data)
+            res = await self.handle_get_leaderboard_entries_global(message_data)
         elif combined_id == message_id(SORT_COMM, GET_LEADERBOARD_ENTRIES_AROUND_USER_REQUEST):
-            res = self.handle_get_leaderboard_entries_arround_user(message_data)
+            res = await self.handle_get_leaderboard_entries_arround_user(message_data)
         elif combined_id == message_id(SORT_WEBBROKER, SUBSCRIBE_TOPIC_REQUEST):
-            res = self.handle_subscribe_topic(message_data)
+            res = await self.handle_subscribe_topic(message_data)
         else:
             self.logger.warning(f"handle_message:fixme:unknown call {header.sort}|{header.type}")
             print(message_data)
@@ -191,13 +199,13 @@ class ConnectionHandler:
 
             self.logger.info(f"handle_message:responded with {res.header.sort}|{res.header.type}")
 
-    def handle_auth_request(self, data):
+    async def handle_auth_request(self, data):
         # TODO: Gracefuly refuse authenticationwhen there is no Internet or user doesn't own a game
         msg = communication_service_pb2.AuthInfoRequest()
         msg.ParseFromString(data)
 
-        credentials = self.token_manager.obtain_token_for(msg.client_id, msg.client_secret)
-        user_info = self.token_manager.get_user_info()
+        credentials, user_info = await asyncio.gather(
+            self.token_manager.obtain_token_for(msg.client_id, msg.client_secret), self.token_manager.get_user_info())
 
         res_data = communication_service_pb2.AuthInfoResponse()
 
@@ -216,7 +224,7 @@ class ConnectionHandler:
         res.header.type = AUTH_INFO_RESPONSE
         return res
 
-    def handle_subscribe_topic(self, data):
+    async def handle_subscribe_topic(self, data):
         msg = webbroker_service_pb2.SubscribeTopicRequest()
         msg.ParseFromString(data)
 
@@ -233,7 +241,7 @@ class ConnectionHandler:
 
         return res
 
-    def handle_update_user_stat(self, data):
+    async def handle_update_user_stat(self, data):
         msg = communication_service_pb2.UpdateUserStatRequest()
         msg.ParseFromString(data)
         value = None
@@ -244,7 +252,7 @@ class ConnectionHandler:
             value = msg.float_value
 
         self.logger.info(f"update_user_stat:setting stat:{msg.stat_id}:{value}")
-        is_ok, status = self.token_manager.update_user_stat(msg.stat_id, value)
+        is_ok, status = await self.token_manager.update_user_stat(msg.stat_id, value)
 
         res = HandlerResponse()
 
@@ -258,12 +266,12 @@ class ConnectionHandler:
 
         return res
 
-    def handle_user_stats_request(self, data):
+    async def handle_user_stats_request(self, data):
         msg = communication_service_pb2.GetUserStatsRequest()
         msg.ParseFromString(data)
 
         user_id = int(bin(msg.user_id)[4:], 2)  # Stip first two bits see token_manager.get_leaderboard_entries
-        stats = self.token_manager.get_user_stats(user_id)
+        stats = await self.token_manager.get_user_stats(user_id)
 
         if not stats:
             return None
@@ -302,8 +310,8 @@ class ConnectionHandler:
         res.header.type = GET_USER_STATS_RESPONSE
         return res
 
-    def handle_delete_user_stats(self, data):
-        status = self.token_manager.delete_user_stats()
+    async def handle_delete_user_stats(self, data):
+        status = await self.token_manager.delete_user_stats()
         res = HandlerResponse()
 
         res.header.sort = SORT_COMM
@@ -314,12 +322,12 @@ class ConnectionHandler:
 
         return res
 
-    def handle_get_user_achievements(self, data):
+    async def handle_get_user_achievements(self, data):
         msg = communication_service_pb2.GetUserAchievementsRequest()
         msg.ParseFromString(data)
 
         user_id = int(bin(msg.user_id)[4:], 2)  # Stip first two bits see token_manager.get_leaderboard_entries
-        achievements = self.token_manager.get_user_achievements(user_id)
+        achievements = await self.token_manager.get_user_achievements(user_id)
 
         response = communication_service_pb2.GetUserAchievementsResponse()
         for achievement in achievements.items:
@@ -350,8 +358,8 @@ class ConnectionHandler:
         res.header.type = GET_USER_ACHIEVEMENTS_RESPONSE
         return res
 
-    def handle_delete_user_achievement(self, data):
-        status = self.token_manager.delete_user_achievements()
+    async def handle_delete_user_achievement(self, data):
+        status = await self.token_manager.delete_user_achievements()
         res = HandlerResponse()
 
         res.header.sort = SORT_COMM
@@ -362,32 +370,31 @@ class ConnectionHandler:
 
         return res
 
-    def handle_unlock_user_achievement(self, data):
+    async def handle_unlock_user_achievement(self, data):
         msg = communication_service_pb2.UnlockUserAchievementRequest()
         msg.ParseFromString(data)
 
         self.logger.info(f"unlock_user_achievement:setting:{msg.achievement_id}:{msg.time}")
-        is_unlocked, is_ok = self.token_manager.set_user_achievement(msg.achievement_id, msg.time)
+        is_unlocked, is_ok = await self.token_manager.set_user_achievement(msg.achievement_id, msg.time)
         res = HandlerResponse()
 
         if is_unlocked:
             self.logger.info("unlock_user_archievement:already set")
-            res.header.Extensions[pb_pb2.Response.code] = 403  # FIXME: Verify status code with galaxy's behaviour
         else:
-            self.token_manager.get_user_achievements(self.token_manager.user_id)
+            await self.token_manager.get_user_achievements(self.token_manager.user_id)
         res.data = bytes()
 
         res.header.sort = SORT_COMM
         res.header.type = UNLOCK_USER_ACHIEVEMENT_RESPONSE
         return res
 
-    def handle_clear_user_achievement(self, data):
+    async def handle_clear_user_achievement(self, data):
         msg = communication_service_pb2.ClearUserAchievementRequest()
         msg.ParseFromString(data)
 
         self.logger.info(f"clear_user_achievement:clearing:{msg.achievement_id}")
-        self.token_manager.set_user_achievement(msg.achievement_id, 0)
-        self.token_manager.get_user_achievements(self.token_manager.user_id)
+        await self.token_manager.set_user_achievement(msg.achievement_id, 0)
+        await self.token_manager.get_user_achievements(self.token_manager.user_id)
         res = HandlerResponse()
 
         res.data = bytes()
@@ -396,8 +403,8 @@ class ConnectionHandler:
         res.header.type = CLEAR_USER_ACHIEVEMENT_RESPONSE
         return res
 
-    def handle_get_leaderboards(self, data):
-        leaderboards = self.token_manager.get_leaderboards()
+    async def handle_get_leaderboards(self, data):
+        leaderboards = await self.token_manager.get_leaderboards()
 
         leaderboards_data = communication_service_pb2.GetLeaderboardsResponse()
         for leaderboard in leaderboards:
@@ -419,7 +426,8 @@ class ConnectionHandler:
 
         return res
 
-    def __prepare_leaderboard_entries_response(self, entries):
+    @staticmethod
+    def __prepare_leaderboard_entries_response(entries):
         leaderboards_entries_res = communication_service_pb2.GetLeaderboardEntriesResponse()
         for entry in entries:
             pb_entry = communication_service_pb2.GetLeaderboardEntriesResponse.LeaderboardEntry()
@@ -430,13 +438,13 @@ class ConnectionHandler:
 
         return leaderboards_entries_res
 
-    def handle_get_leaderboard_entries_global(self, data):
+    async def handle_get_leaderboard_entries_global(self, data):
         msg = communication_service_pb2.GetLeaderboardEntriesGlobalRequest()
         msg.ParseFromString(data)
 
-        entries, total, status = self.token_manager.get_leaderboard_entries(msg.leaderboard_id,
-                                                                            range_start=msg.range_start,
-                                                                            range_end=msg.range_end)
+        entries, total, status = await self.token_manager.get_leaderboard_entries(msg.leaderboard_id,
+                                                                                  range_start=msg.range_start,
+                                                                                  range_end=msg.range_end)
 
         res = HandlerResponse()
         res.data = bytes()
@@ -457,15 +465,15 @@ class ConnectionHandler:
 
         return res
 
-    def handle_get_leaderboard_entries_arround_user(self, data):
+    async def handle_get_leaderboard_entries_arround_user(self, data):
         msg = communication_service_pb2.GetLeaderboardEntriesAroundUserRequest()
         msg.ParseFromString(data)
 
         user_id = int(bin(msg.user_id)[4:], 2)  # Stip first two bits see token_manager.get_leaderboard_entries
 
-        entries, total, status = self.token_manager.get_leaderboard_entries(msg.leaderboard_id, user_id=user_id,
-                                                                            count_before=msg.count_before,
-                                                                            count_after=msg.count_after)
+        entries, total, status = await self.token_manager.get_leaderboard_entries(msg.leaderboard_id, user_id=user_id,
+                                                                                  count_before=msg.count_before,
+                                                                                  count_after=msg.count_after)
 
         res = HandlerResponse()
         res.data = bytes()

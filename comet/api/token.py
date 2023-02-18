@@ -1,8 +1,7 @@
 import datetime
 import time
-import json
 
-import requests
+import aiohttp
 from urllib import parse
 
 from comet.proto.galaxy.protocols import communication_service_pb2
@@ -28,20 +27,20 @@ class TokenManager:
         self.access_token = token
         self.refresh_token = refresh_token
         self.user_id = user_id
-        self.session = requests.session()
-        self.session.headers = {
-            "Authorization": f"Bearer {self.access_token}"
-        }
+        self.session = None
 
         self.tokens = dict()
         self.achievements = list()
         self.client_id = None
         self.client_secret = None
 
-    def obtain_token_for(self, client_id, client_secret):
+    async def setup(self):
+        self.session = aiohttp.ClientSession(headers={'Authorization': f'Bearer {self.access_token}'})
+
+    async def obtain_token_for(self, client_id, client_secret):
         self.client_id = client_id
         self.client_secret = client_secret
-        response = self.session.get(
+        response = await self.session.get(
             f"https://auth.gog.com/token?"
             f"client_id={client_id}&"
             f"client_secret={client_secret}&"
@@ -53,17 +52,17 @@ class TokenManager:
         if not response.ok:
             print("Error obtaining access token")
             return None
-        json_data = response.json()
+        json_data = await response.json()
         json_data["comet_obtain_time"] = time.time()
         self.tokens[client_id] = json_data
         return json_data
 
-    def refresh_token_for(self, client_id, client_secret):
+    async def refresh_token_for(self, client_id, client_secret):
         token = self.tokens[client_id]
         if token['comet_obtain_time'] + token["expires_in"] >= time.time():
             return False, None
 
-        response = self.session.get(
+        response = await self.session.get(
             f"https://auth.gog.com/token?"
             f"client_id={client_id}&"
             f"client_secret={client_secret}&"
@@ -75,36 +74,38 @@ class TokenManager:
         if not response.ok:
             print("Error refreshing access token")
             return False, None
-        json_data = response.json()
+        json_data = await response.json()
         json_data["comet_obtain_time"] = time.time()
         self.tokens[client_id] = json_data
         return True, json_data
 
-    def get_user_info(self):
-        response = self.session.get("https://embed.gog.com/userData.json")
+    async def get_user_info(self):
+        response = await self.session.get("https://embed.gog.com/userData.json")
 
         if not response.ok:
             print("Error obtaining user data")
             return None
 
-        return response.json()
+        data = await response.json()
+        return data
 
-    def get_info_for_users(self, ids):
+    async def get_info_for_users(self, ids):
         string_ids = ",".join(ids)
 
         url = f"https://users.gog.com/users?ids={string_ids}"
 
         token = self.tokens.get(self.client_id)
 
-        res = self.session.get(url, headers={"Authorization": f"Bearer {token['access_token']}"})
+        res = await self.session.get(url, headers={"Authorization": f"Bearer {token['access_token']}"})
 
-        return res.json()["items"]
+        data = await res.json()
+        return data["items"]
 
-    def get_user_stats(self, user_id):
+    async def get_user_stats(self, user_id):
         token = self.tokens.get(self.client_id)
         if not token:
             print("Error, user stats requested before token")
-        response = self.session.get(
+        response = await self.session.get(
             f"https://gameplay.gog.com/clients/{self.client_id}/users/{user_id}/stats",
             headers={"Authorization": f"Bearer {token['access_token']}"}
         )
@@ -113,7 +114,7 @@ class TokenManager:
             print("Error obtaining user stats")
             return None
 
-        data = response.json()
+        data = await response.json()
 
         array = data['items']
         stats_list = list()
@@ -155,40 +156,40 @@ class TokenManager:
             stats_list.append(stat)
         return stats_list
 
-    def update_user_stat(self, stat_id, value):
+    async def update_user_stat(self, stat_id, value):
         token = self.tokens.get(self.client_id)
-        response = self.session.post(
+        response = await self.session.post(
             f"https://gameplay.gog.com/clients/{self.client_id}/users/{self.user_id}/stats/{stat_id}",
             json={
                 'value': value
             },
 
             headers={'Authorization': f"Bearer {token['access_token']}"})
-        return response.ok, response.status_code
+        return response.ok, response.status
 
-    def delete_user_stats(self):
+    async def delete_user_stats(self):
         token = self.tokens.get(self.client_id)
 
-        response = self.session.delete(
+        response = await self.session.delete(
             f"https://gameplay.gog.com/clients/{self.client_id}/users/{self.user_id}/stats",
             headers={'Authorization': f"Bearer {token['access_token']}"})
 
         if not response.ok:
             print("Error deleting achievements")
-            return response.status_code
+            return response.status
         return 202
 
-    def get_user_achievements(self, user_id):
+    async def get_user_achievements(self, user_id):
         token = self.tokens.get(self.client_id)
         if not token:
             print("Error, user achievements requested before token")
 
-        response = self.session.get(
+        response = await self.session.get(
             f"https://gameplay.gog.com/clients/{self.client_id}/users/{user_id}/achievements",
             headers={'Authorization': f'Bearer {token["access_token"]}'}
         )
 
-        json_data = response.json()
+        json_data = await response.json()
         achievement_array = json_data['items']
         self.achievements = achievement_array
         achievements = UserAchievementList()
@@ -219,7 +220,7 @@ class TokenManager:
         achievements.language = 'en-US'
         return achievements
 
-    def set_user_achievement(self, ach_id, time):
+    async def set_user_achievement(self, ach_id, time):
         token = self.tokens.get(self.client_id)
         if not token:
             print("Error, user achievement unlock requested before token")
@@ -247,7 +248,7 @@ class TokenManager:
             "date_unlocked": date_unlocked
         }
 
-        response = self.session.post(
+        response = await self.session.post(
             f"https://gameplay.gog.com/clients/{self.client_id}/users/{self.user_id}/achievements/{ach_id}",
             json=payload,
             headers={'Authorization': f'Bearer {token["access_token"]}'}
@@ -260,25 +261,25 @@ class TokenManager:
 
         return False, True  # is_unlocked, is_ok
 
-    def delete_user_achievements(self):
+    async def delete_user_achievements(self):
         token = self.tokens.get(self.client_id)
 
-        response = self.session.delete(
+        response = await self.session.delete(
             f"https://gameplay.gog.com/clients/{self.client_id}/users/{self.user_id}/achievements",
             headers={'Authorization': f"Bearer {token['access_token']}"})
 
         if not response.ok:
             print("Error deleting achievements")
-            return response.status_code
+            return response.status
         return 202
 
-    def get_leaderboards(self):
+    async def get_leaderboards(self):
         request_url = f"https://gameplay.gog.com/clients/{self.client_id}/leaderboards"
 
         token = self.tokens.get(self.client_id)
-        response = self.session.get(request_url, headers={'Authorization': f'Bearer {token["access_token"]}'})
+        response = await self.session.get(request_url, headers={'Authorization': f'Bearer {token["access_token"]}'})
 
-        data = response.json()
+        data = await response.json()
 
         leaderboards_definitions = list()
         for leaderboard in data["items"]:
@@ -308,8 +309,9 @@ class TokenManager:
 
         return leaderboards_definitions
 
-    def get_leaderboard_entries(self, leaderboard_id, range_start=None, range_end=None, user_id=None, count_before=None,
-                                count_after=None):
+    async def get_leaderboard_entries(self, leaderboard_id, range_start=None, range_end=None, user_id=None,
+                                      count_before=None,
+                                      count_after=None):
 
         params = dict()
 
@@ -330,12 +332,12 @@ class TokenManager:
         print(url)
 
         token = self.tokens.get(self.client_id)
-        response = self.session.get(url, headers={'Authorization': f"Bearer {token['access_token']}"})
+        response = await self.session.get(url, headers={'Authorization': f"Bearer {token['access_token']}"})
 
         if not response.ok:
-            return [], 0, response.status_code
+            return [], 0, response.status
 
-        data = response.json()
+        data = await response.json()
 
         leaderboard_entries = list()
         for entry in data['items']:
@@ -347,4 +349,4 @@ class TokenManager:
             leaderboard_entry.score = int(entry["score"])
 
             leaderboard_entries.append(leaderboard_entry)
-        return leaderboard_entries, data['leaderboard_entry_total_count'], response.status_code
+        return leaderboard_entries, data['leaderboard_entry_total_count'], response.status

@@ -4,7 +4,9 @@ import argparse
 import json
 import os
 import logging
+import asyncio
 from comet.api.token import TokenManager
+from comet.api.notification_pusher import NotificationPusher
 from comet import handlers
 
 
@@ -67,9 +69,10 @@ else:
 
 logger.info(f"started listening on port {PORT}")
 token_mgr = TokenManager(token, refresh_token, user_id)
+notification_pusher = NotificationPusher(token, user_id)
+
 soc.listen(5)
 while True:
-    con, address = None, None
     try:
         con, address = soc.accept()
     except KeyboardInterrupt:
@@ -79,7 +82,7 @@ while True:
     print(address[1])
     if address[0] == '127.0.0.1':
         print("Accepting connection")
-        con_handler = handlers.ConnectionHandler(con, address, token_mgr)
-        con_handler.handle_conection()
+        con_handler = handlers.ConnectionHandler(con, address, token_mgr, notification_pusher)
+        asyncio.run(con_handler.handle_connection())
     else:
         con.close()
