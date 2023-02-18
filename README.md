@@ -38,10 +38,6 @@ Excluding Overlay, and Cloud Sync related.
 - [ ] OVERLAY_STATE_CHANGE_NOTIFICATION
 - [ ] CONFIGURE_ENVIRONMENT_REQUEST
 
-## Stubbed requests
-
-- SUBSCRIBE_TOPIC_REQUEST (respond with success but comet won't send any events that this request subscribes to)
-
 ## Experimental support
 
 Following requests are supported experimentally (they haven't been tested well)
@@ -59,10 +55,10 @@ First, you neeed to obtain data about account `access_token`, `refresh_token` an
 
 ### Dependencies
 
-Currently the only dependency is python protocolbuffers and requests
+Currently the only dependency is python protocolbuffers and aiohttp
 
 ```sh
-pip install protobuf requests
+pip install -r requirements.txt
 ```
 
 Alternatively you can install it using your Linux distro's package manager
