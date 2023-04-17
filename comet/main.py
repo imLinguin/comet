@@ -13,17 +13,17 @@ from comet import handlers
 def get_heroic_config_path():
     if sys.platform == 'linux':
         os_path = os.path.normpath(
-            f"{os.getenv('XDG_CONFIG_PATH', os.path.expandvars('$HOME/.config'))}/heroic/gog_store/config.json")
+            f"{os.getenv('XDG_CONFIG_PATH', os.path.expandvars('$HOME/.config'))}/heroic/gog_store/auth.json")
         flatpak_path = os.path.expandvars(
-            "$HOME/.var/app/com.heroicgameslauncher.hgl/config/heroic/gog_store/config.json")
+            "$HOME/.var/app/com.heroicgameslauncher.hgl/config/heroic/gog_store/auth.json")
 
         if os.path.exists(os_path):
             return os_path
         return flatpak_path
     elif sys.platform == 'win32':
-        return os.path.expandvars("%APPDATA%/heroic/gog_store/config.json")
+        return os.path.expandvars("%APPDATA%/heroic/gog_store/auth.json")
     elif sys.platform == 'darwin':
-        return os.path.expandvars("$HOME/.config/heroic/gog_store/config.json")
+        return os.path.expandvars("$HOME/.config/heroic/gog_store/auth.json")
 
 
 def load_heroic_config():
@@ -32,8 +32,8 @@ def load_heroic_config():
     data = file.read()
     file.close()
     json_data = json.loads(data)
-    return json_data["credentials"]["access_token"], json_data["credentials"]["refresh_token"], \
-        json_data["credentials"]["user_id"]
+    return json_data["46899977096215655"]["access_token"], json_data["46899977096215655"]["refresh_token"], \
+        json_data["46899977096215655"]["user_id"]
 
 
 parser = argparse.ArgumentParser()
