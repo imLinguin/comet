@@ -73,7 +73,7 @@ Log in to GOG within the launcher. Make sure to launch it before running Comet t
 
 If GOG authentication has never been performed in Heroic on the current user, create the expected directory:
 
-`mkdir -p $HOME/.config/heroic/gog_store/auth.json`
+`mkdir -p $HOME/.config/heroic/gog_store`
 
 Then, run the command:
 
