@@ -61,9 +61,7 @@ Alternatively you can install it using your Linux distro's package manager
 
 ### Authentication
 
-First, you need to obtain data about account `access_token`, `refresh_token` and `user_id`
-
-(for Heroic these can be found in `$HOME/.config/heroic/gog_store/auth.json`)
+You need to obtain `access_token`, `refresh_token` and `user_id` either manually, or by importing them:
 
 #### Via [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher)
 
@@ -73,11 +71,15 @@ Log in to GOG within the launcher. Make sure to launch it before running Comet t
 
 If GOG authentication has never been performed in Heroic on the current user, create the expected directory:
 
-`mkdir -p $HOME/.config/heroic/gog_store/auth.json`
+```
+mkdir -p $HOME/.config/heroic/gog_store
+```
 
 Then, run the command:
 
-`./bin/gogdl --auth-config-path $HOME/.config/heroic/gog_store/auth.json auth --code <code>`
+```
+./bin/gogdl --auth-config-path $HOME/.config/heroic/gog_store/auth.json auth --code <code>
+```
 
 Obtain the code by logging in using this URL, then copying the code value from the resulting URL:
 
