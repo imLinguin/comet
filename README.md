@@ -61,9 +61,9 @@ Alternatively you can install it using your Linux distro's package manager
 
 ### Authentication
 
-First, you neeed to obtain data about account `access_token`, `refresh_token` and `user_id`
+First, you need to obtain data about account `access_token`, `refresh_token` and `user_id`
 
-(for Heroic these can be found in `$HOME/.config/heroic/gog_store/config.json`)
+(for Heroic these can be found in `$HOME/.config/heroic/gog_store/auth.json`)
 
 #### Via [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher)
 
