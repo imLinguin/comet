@@ -49,10 +49,6 @@ Following requests are supported experimentally (they haven't been tested well)
 
 Currently service supports small amount of calls, but these are enough to play Gwent for example.
 
-First, you neeed to obtain data about account `access_token`, `refresh_token` and `user_id`
-
-(for Heroic these can be found in `.config/heroic/gog_store/config.json`)
-
 ### Dependencies
 
 Currently the only dependency is python protocolbuffers and aiohttp
@@ -63,13 +59,37 @@ pip install -r requirements.txt
 
 Alternatively you can install it using your Linux distro's package manager
 
+### Authentication
+
+First, you neeed to obtain data about account `access_token`, `refresh_token` and `user_id`
+
+(for Heroic these can be found in `$HOME/.config/heroic/gog_store/config.json`)
+
+#### Via [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher)
+
+Log in to GOG within the launcher. Make sure to launch it before running Comet to ensure the credentials are refreshed.
+
+#### Via [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl) (CLI)
+
+If GOG authentication has never been performed in Heroic on the current user, create the expected directory:
+
+`mkdir -p $HOME/.config/heroic/gog_store/auth.json`
+
+Then, run the command:
+
+`./bin/gogdl --auth-config-path $HOME/.config/heroic/gog_store/auth.json auth --code <code>`
+
+Obtain the code by logging in using this URL, then copying the code value from the resulting URL:
+
+https://login.gog.com/auth?client_id=46899977096215655&layout=galaxy&redirect_uri=https%3A%2F%2Fembed.gog.com%2Fon_login_success%3Forigin%3Dclient&response_type=code
+
 ### Running
 
 ```
 ./bin/comet --token "<access_token>" --refresh_token "<refresh_token>" --user-id <user_id>
 ```
 
-Or if you are using heroic
+Or if you are using Heroic/gogdl
 
 ```
 ./bin/comet --from-heroic
