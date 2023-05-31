@@ -103,7 +103,7 @@ class NotificationPusher:
                         await self.connection.send_bytes(message)
                 else:
                     self.logger.error(
-                        f"failed to authenticate socket:{header_pb.Extensions[pb_pb2.Response.Header.code]}")
+                        f"failed to authenticate socket:{header_pb.Extensions[pb_pb2.Response.code]}")
             elif header_pb.type == SUBSCRIBE_TOPIC_RESPONSE:
                 resp = webbroker_service_pb2.SubscribeTopicResponse()
                 resp.ParseFromString(message_data.read(header_pb.size))

@@ -17,9 +17,9 @@ def get_heroic_config_path():
         flatpak_path = os.path.expandvars(
             "$HOME/.var/app/com.heroicgameslauncher.hgl/config/heroic/gog_store/auth.json")
 
-        if os.path.exists(os_path):
-            return os_path
-        return flatpak_path
+        if os.path.exists(flatpak_path):
+            return flatpak_path
+        return os_path
     elif sys.platform == 'win32':
         return os.path.expandvars("%APPDATA%/heroic/gog_store/auth.json")
     elif sys.platform == 'darwin':
@@ -73,6 +73,7 @@ notification_pusher = NotificationPusher(token, user_id)
 
 soc.listen(5)
 while True:
+    logger.info(f"waiting for connection")
     try:
         con, address = soc.accept()
     except KeyboardInterrupt:

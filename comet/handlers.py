@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import socket
+import sys
 from dataclasses import dataclass
 
 from comet.api.token import TokenManager
@@ -195,9 +196,13 @@ class ConnectionHandler:
             res_header_data = res.header.SerializeToString()
             res_header_data_size = len(res_header_data).to_bytes(2, 'big')
 
-            self.connection.sendmsg([res_header_data_size, res_header_data, res.data])
+            try:
+                self.connection.sendmsg([res_header_data_size, res_header_data, res.data])
 
-            self.logger.info(f"handle_message:responded with {res.header.sort}|{res.header.type}")
+                self.logger.info(f"handle_message:responded with {res.header.sort}|{res.header.type}")
+            except BrokenPipeError:
+                self.closed = True
+                return
 
     async def handle_auth_request(self, data):
         # TODO: Gracefuly refuse authenticationwhen there is no Internet or user doesn't own a game
@@ -206,6 +211,14 @@ class ConnectionHandler:
 
         credentials, user_info = await asyncio.gather(
             self.token_manager.obtain_token_for(msg.client_id, msg.client_secret), self.token_manager.get_user_info())
+
+        if not credentials or not user_info:
+            self.logger.error("handle_auth_request:failed to obtain credentials")
+            self.connection.close()
+            await self.notification_pusher.close()
+            if not self.token_manager.session.closed:
+                await self.token_manager.session.close()
+            sys.exit(1)
 
         res_data = communication_service_pb2.AuthInfoResponse()
 
