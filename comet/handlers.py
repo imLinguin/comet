@@ -197,7 +197,7 @@ class ConnectionHandler:
             res_header_data_size = len(res_header_data).to_bytes(2, 'big')
 
             try:
-                self.connection.sendmsg([res_header_data_size, res_header_data, res.data])
+                self.connection.send(res_header_data_size + res_header_data + res.data)
 
                 self.logger.info(f"handle_message:responded with {res.header.sort}|{res.header.type}")
             except BrokenPipeError:
