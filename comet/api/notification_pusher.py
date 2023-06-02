@@ -111,7 +111,7 @@ class NotificationPusher:
                 self.subscribed_topics.update(resp.topic)
             elif header_pb.type == MESSAGE_FROM_TOPIC:
                 # Just forward the message
-                game_socket.sendmsg([message_buf.data])
+                game_socket.send(message_buf.data)
 
             await asyncio.sleep(1)
 

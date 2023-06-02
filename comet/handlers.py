@@ -116,7 +116,7 @@ class ConnectionHandler:
                 #         res_header_data = msg.header.SerializeToString()
                 #         res_header_data_size = len(res_header_data).to_bytes(2, 'big')
                 #
-                #         self.connection.sendmsg([res_header_data_size, res_header_data, msg.data])
+                #         self.connection.send(res_header_data_size + res_header_data + msg.data)
                 continue
             except socket.error as e:
                 self.logger.error(f"handle_connection:Error reading socket data {e}")
