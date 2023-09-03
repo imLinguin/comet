@@ -8,7 +8,7 @@ Note: that means it can't and won't replace Communication Service in official cl
 This will provide minimal and platform agnostic SDK. For use in game launchers like Heroic or Lutris
 
 Project is continuation of Yepoleb's work [https://gitlab.com/Yepoleb/comet/](https://gitlab.com/Yepoleb/comet/) but in
-Python
+~~Python~~ now in Rust
 
 ## Supported Requests
 

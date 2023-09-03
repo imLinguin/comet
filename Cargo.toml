@@ -1,0 +1,26 @@
+[package]
+name = "comet"
+version = "0.1.0"
+edition = "2021"
+description = ""
+authors = ["Paweł Lidwin <linguin@tutanota.com>"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+reqwest = { version = "0.11", features = ["json", "native-tls"] }
+tokio = { version = "1", features = ["full"] }
+tokio-tungstenite = { version = "*", features = ["native-tls"] }
+futures-util = "0.3"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+protobuf = "3.2"
+clap = { version = "4.3.19", features = ["derive"] }
+log = "0.4.19"
+env_logger = "0.10.0"
+
+[build-dependencies]
+protobuf-codegen = "3.2.0"
+protoc-bin-vendored = "3.0.0"
+
+
