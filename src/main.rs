@@ -1,6 +1,7 @@
 use clap::Parser;
 use env_logger::Env;
 use log::{error, info};
+use reqwest::Client;
 use tokio::net::TcpListener;
 
 mod api;
@@ -69,9 +70,12 @@ async fn main() {
         .await
         .expect("Failed to bind to port 9977");
 
-    let (topic_sender, mut topic_receiver) = tokio::sync::broadcast::channel::<Vec<u8>>(20);
+    let (topic_sender, _) = tokio::sync::broadcast::channel::<Vec<u8>>(20);
+    let reqwest_client = Client::builder()
+        .user_agent(format!("Comet/{}", env!("CARGO_PKG_VERSION")))
+        .build();
     let mut notification_pusher_client =
-        NotificationPusherClient::new(&access_token, topic_sender).await;
+        NotificationPusherClient::new(&access_token, topic_sender.clone()).await;
 
     tokio::spawn(async move { notification_pusher_client.handle_loop().await });
 
@@ -80,12 +84,13 @@ async fn main() {
         let acceptance = listener.accept().await;
 
         if let Err(error) = acceptance {
-            error!("Failed to accept the connection {error:?}");
+            error!("Failed to accept the connection {:?}", error);
             continue;
         }
 
         let (socket, _addr) = acceptance.unwrap();
 
         // Spawn handler
+        let mut socket_topic_receiver = topic_sender.subscribe();
     }
 }

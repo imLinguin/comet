@@ -75,130 +75,113 @@ impl NotificationPusherClient {
     pub async fn handle_loop(&mut self) {
         loop {
             let message = self.pusher_connection.next().await;
-            match message {
-                Some(msg) => match msg {
-                    Ok(msg) => {
-                        debug!("Recieved a message");
-                        if msg.is_binary() {
-                            let msg_data = msg.into_data();
-                            let proto_message = common_utils::parse_message(&msg_data).await;
-                            match proto_message {
-                                Ok(message) => {
-                                    let msg_type = message.header.type_();
-                                    let sort = message.header.sort();
+            let message = match message {
+                Some(msg) => msg,
+                None => break,
+            };
 
-                                    if sort != MessageSort::MESSAGE_SORT as u32 {
-                                        warn!("Notifications pusher sort has unexpected value {}, ignoring... this may introduce unexpected behavior", sort);
-                                    }
+            let message = match message {
+                Ok(msg) => msg,
+                Err(err) => {
+                    error!(
+                        "There was an error reading notifications pusher message: {}",
+                        err
+                    );
+                    continue;
+                }
+            };
 
-                                    if msg_type == MessageType::AUTH_RESPONSE as u32 {
-                                        // No content
-                                        let status_code =
-                                            message.header.special_fields.unknown_fields().get(101);
-                                        if let Some(UnknownValueRef::Varint(code)) = status_code {
-                                            let code: i32 = code.try_into().unwrap();
-                                            if let Some(enum_code) = Status::from_i32(code) {
-                                                if enum_code == Status::OK {
-                                                    info!("Subscribing to chat, friends, presence");
-                                                    let mut header = Header::new();
-                                                    header
-                                                        .set_sort(MessageSort::MESSAGE_SORT as u32);
-                                                    header.set_type(
-                                                        MessageType::SUBSCRIBE_TOPIC_REQUEST as u32,
-                                                    );
-                                                    let mut oseq = 1020;
-                                                    for topic in ["chat", "friends", "presence"] {
-                                                        let mut message_buffer: Vec<u8> =
-                                                            Vec::new();
-                                                        let mut request_data =
-                                                            SubscribeTopicRequest::new();
-                                                        request_data.set_topic(String::from(topic));
-                                                        let payload =
-                                                            request_data.write_to_bytes().unwrap();
-                                                        header.set_size(
-                                                            payload.len().try_into().unwrap(),
-                                                        );
-                                                        header.set_oseq(oseq);
-                                                        oseq += 1;
-                                                        let header_buf =
-                                                            header.write_to_bytes().unwrap();
+            debug!("Recieved a message");
+            if message.is_binary() {
+                let msg_data = message.into_data();
+                let proto_message = common_utils::parse_message(&msg_data).await;
+                let parsed_message = match proto_message {
+                    Ok(message) => message,
+                    Err(err) => {
+                        error!("There was an error parsing socket message: {}", err);
+                        continue;
+                    }
+                };
+                let msg_type = parsed_message.header.type_();
+                let sort = parsed_message.header.sort();
 
-                                                        let header_size: u16 =
-                                                            header_buf.len().try_into().unwrap();
+                if sort != MessageSort::MESSAGE_SORT as u32 {
+                    warn!("Notifications pusher sort has unexpected value {}, ignoring... this may introduce unexpected behavior", sort);
+                }
 
-                                                        message_buffer
-                                                            .extend(header_size.to_be_bytes());
-                                                        message_buffer.extend(header_buf);
-                                                        message_buffer.extend(payload);
+                if msg_type == MessageType::AUTH_RESPONSE as u32 {
+                    // No content
+                    let status_code = parsed_message
+                        .header
+                        .special_fields
+                        .unknown_fields()
+                        .get(101);
+                    if let Some(UnknownValueRef::Varint(code)) = status_code {
+                        let code: i32 = code.try_into().unwrap();
+                        if let Some(enum_code) = Status::from_i32(code) {
+                            if enum_code == Status::OK {
+                                info!("Subscribing to chat, friends, presence");
+                                let mut header = Header::new();
+                                header.set_sort(MessageSort::MESSAGE_SORT as u32);
+                                header.set_type(MessageType::SUBSCRIBE_TOPIC_REQUEST as u32);
+                                let mut oseq = 1020;
+                                for topic in ["chat", "friends", "presence"] {
+                                    let mut message_buffer: Vec<u8> = Vec::new();
+                                    let mut request_data = SubscribeTopicRequest::new();
+                                    request_data.set_topic(String::from(topic));
+                                    let payload = request_data.write_to_bytes().unwrap();
+                                    header.set_size(payload.len().try_into().unwrap());
+                                    header.set_oseq(oseq);
+                                    oseq += 1;
+                                    let header_buf = header.write_to_bytes().unwrap();
 
-                                                        let new_message =
-                                                            tungstenite::Message::Binary(
-                                                                message_buffer,
-                                                            );
-                                                        if let Err(error) = self
-                                                            .pusher_connection
-                                                            .feed(new_message)
-                                                            .await
-                                                        {
-                                                            error!("There was an error subscribing to {}, {:?}", topic, error);
-                                                        }
-                                                    }
-                                                    if let Err(error) =
-                                                        self.pusher_connection.flush().await
-                                                    {
-                                                        error!(
-                                                            "There was an error flushing {:?}",
-                                                            error
-                                                        );
-                                                    }
-                                                    info!("Completed subscribe requests");
-                                                    continue;
-                                                }
-                                            }
-                                        }
-                                    } else if msg_type
-                                        == MessageType::SUBSCRIBE_TOPIC_RESPONSE as u32
+                                    let header_size: u16 = header_buf.len().try_into().unwrap();
+
+                                    message_buffer.extend(header_size.to_be_bytes());
+                                    message_buffer.extend(header_buf);
+                                    message_buffer.extend(payload);
+
+                                    let new_message = tungstenite::Message::Binary(message_buffer);
+                                    if let Err(error) =
+                                        self.pusher_connection.feed(new_message).await
                                     {
-                                        let topic_response =
-                                            SubscribeTopicResponse::parse_from_bytes(
-                                                &message.payload,
-                                            );
-                                        match topic_response {
-                                            Ok(response) => {
-                                                let topic = response.topic();
-                                                info!("Successfully subscribed to topic {}", topic);
-                                            }
-                                            Err(err) => {
-                                                error!(
-                                                    "Failed to parse topic response payload {:?}",
-                                                    err
-                                                )
-                                            }
-                                        }
-                                    } else if msg_type == MessageType::MESSAGE_FROM_TOPIC as u32 {
-                                        info!("Recieved message from topic");
-                                        if let Err(error) = self.topic_sender.send(msg_data) {
-                                            error!("There was an error when forwarding topic message: {}", error);
-                                        }
-                                    } else {
-                                        warn!("Unhandled message type: {}", msg_type);
+                                        error!(
+                                            "There was an error subscribing to {}, {:?}",
+                                            topic, error
+                                        );
                                     }
                                 }
-                                Err(err) => {
-                                    error!("There was an error parsing socket message: {}", err)
+                                if let Err(error) = self.pusher_connection.flush().await {
+                                    error!("There was an error flushing {:?}", error);
                                 }
+                                info!("Completed subscribe requests");
+                                continue;
                             }
                         }
                     }
-                    Err(err) => {
+                } else if msg_type == MessageType::SUBSCRIBE_TOPIC_RESPONSE as u32 {
+                    let topic_response =
+                        SubscribeTopicResponse::parse_from_bytes(&parsed_message.payload);
+                    match topic_response {
+                        Ok(response) => {
+                            let topic = response.topic();
+                            info!("Successfully subscribed to topic {}", topic);
+                        }
+                        Err(err) => {
+                            error!("Failed to parse topic response payload {:?}", err)
+                        }
+                    }
+                } else if msg_type == MessageType::MESSAGE_FROM_TOPIC as u32 {
+                    info!("Recieved message from topic");
+                    if let Err(error) = self.topic_sender.send(msg_data) {
                         error!(
-                            "There was an error reading notifications pusher message: {}",
-                            err
+                            "There was an error when forwarding topic message: {}",
+                            error
                         );
                     }
-                },
-
-                None => break,
+                } else {
+                    warn!("Unhandled message type: {}", msg_type);
+                }
             }
         }
         warn!("Notification pusher exiting");
