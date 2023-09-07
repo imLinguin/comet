@@ -8,9 +8,9 @@ authors = ["Paweł Lidwin <linguin@tutanota.com>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = { version = "0.11", features = ["json", "native-tls"] }
+reqwest = { version = "0.11", features = ["json", "rustls-tls-native-roots"] }
 tokio = { version = "1", features = ["full"] }
-tokio-tungstenite = { version = "*", features = ["native-tls"] }
+tokio-tungstenite = { version = "*", features = ["rustls-tls-native-roots"] }
 futures-util = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"

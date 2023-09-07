@@ -1,17 +1,12 @@
-use std::sync::{Arc, Mutex};
-
 use clap::Parser;
 use env_logger::Env;
 use log::{error, info};
-use tokio::net::{TcpListener, TcpStream};
+use tokio::net::TcpListener;
 
-// PROTOBUF
-mod proto {
-    include!(concat!(env!("OUT_DIR"), "/proto/mod.rs"));
-}
 mod api;
 mod constants;
 mod heroic;
+mod proto;
 
 use api::notification_pusher::NotificationPusherClient;
 
@@ -48,15 +43,22 @@ async fn main() {
         user_id = config
             .get("user_id")
             .expect("user_id not present in heroic config")
-            .to_string();
+            .as_str()
+            .unwrap()
+            .to_owned();
+
         access_token = config
             .get("access_token")
             .expect("access_token not present in heroic config")
-            .to_string();
+            .as_str()
+            .unwrap()
+            .to_owned();
         refresh_token = config
             .get("refresh_token")
             .expect("refresh_token not present in heroic config")
-            .to_string();
+            .as_str()
+            .unwrap()
+            .to_owned();
     } else {
         access_token = args.access_token.expect("Access token is required");
         user_id = args.user_id.expect("User id is required");
@@ -67,12 +69,13 @@ async fn main() {
         .await
         .expect("Failed to bind to port 9977");
 
+    let (topic_sender, mut topic_receiver) = tokio::sync::broadcast::channel::<Vec<u8>>(20);
+    let mut notification_pusher_client =
+        NotificationPusherClient::new(&access_token, topic_sender).await;
+
+    tokio::spawn(async move { notification_pusher_client.handle_loop().await });
+
     info!("Listening on port 9977");
-
-    let notification_pusher_client = Arc::new(Mutex::new(NotificationPusherClient::new(&access_token).await));
-    let mut sockets: Vec<Arc<TcpStream>> = Vec::new();
-    
-
     loop {
         let acceptance = listener.accept().await;
 
@@ -83,8 +86,6 @@ async fn main() {
 
         let (socket, _addr) = acceptance.unwrap();
 
-        let socket = Arc::new(socket);
-
-        sockets.push(socket.clone());
+        // Spawn handler
     }
 }
