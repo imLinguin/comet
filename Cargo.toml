@@ -10,6 +10,7 @@ authors = ["Paweł Lidwin <linguin@tutanota.com>"]
 [dependencies]
 reqwest = { version = "0.11", features = ["json", "rustls-tls-native-roots"] }
 tokio = { version = "1", features = ["full"] }
+tokio-util = "0.7"
 tokio-tungstenite = { version = "*", features = ["rustls-tls-native-roots"] }
 futures-util = "0.3"
 serde = { version = "1.0", features = ["derive"] }
@@ -23,4 +24,7 @@ env_logger = "0.10.0"
 protobuf-codegen = "3.2.0"
 protoc-bin-vendored = "3.0.0"
 
+
+[profile.release]
+strip = true
 

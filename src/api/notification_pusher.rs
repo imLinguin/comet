@@ -5,14 +5,14 @@ use tokio::net::TcpStream;
 use tokio::sync::broadcast::Sender;
 use tokio_tungstenite::tungstenite;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
+use tokio_util::sync::CancellationToken;
 
-use crate::proto::galaxy_protocols_webbroker_service::{
-    SubscribeTopicRequest, SubscribeTopicResponse,
-};
+use crate::proto::common_utils::ProtoPayload;
 use crate::proto::gog_protocols_pb::response::Status;
 use crate::proto::{
-    common_utils,
-    galaxy_protocols_webbroker_service::{AuthRequest, MessageSort, MessageType},
+    galaxy_protocols_webbroker_service::{
+        AuthRequest, MessageSort, MessageType, SubscribeTopicRequest, SubscribeTopicResponse,
+    },
     gog_protocols_pb::Header,
 };
 
@@ -72,9 +72,17 @@ impl NotificationPusherClient {
         ws_stream
     }
 
-    pub async fn handle_loop(&mut self) {
+    pub async fn handle_loop(&mut self, shutdown_token: CancellationToken) {
         loop {
-            let message = self.pusher_connection.next().await;
+            let message = tokio::select! {
+                msg = self.pusher_connection.next() => {msg}
+                _ = shutdown_token.cancelled() => {
+                    // We are shutting down, we can ignore any errors
+                    let _ = self.pusher_connection.close(None).await;
+                    None
+                }
+            };
+
             let message = match message {
                 Some(msg) => msg,
                 None => break,
@@ -94,7 +102,7 @@ impl NotificationPusherClient {
             debug!("Recieved a message");
             if message.is_binary() {
                 let msg_data = message.into_data();
-                let proto_message = common_utils::parse_message(&msg_data).await;
+                let proto_message = NotificationPusherClient::parse_message(&msg_data);
                 let parsed_message = match proto_message {
                     Ok(message) => message,
                     Err(err) => {
@@ -185,5 +193,27 @@ impl NotificationPusherClient {
             }
         }
         warn!("Notification pusher exiting");
+    }
+
+    pub fn parse_message(msg_data: &Vec<u8>) -> Result<ProtoPayload, protobuf::Error> {
+        use crate::proto::gog_protocols_pb;
+
+        let data = msg_data.as_slice();
+
+        let mut header_size_buf = [0; 2];
+        header_size_buf.copy_from_slice(&data[..2]);
+        let header_size = u16::from_be_bytes(header_size_buf).into();
+
+        let mut header_buf: Vec<u8> = vec![0; header_size];
+        header_buf.copy_from_slice(&data[2..header_size + 2]);
+
+        let header = gog_protocols_pb::Header::parse_from_bytes(&header_buf)?;
+
+        let payload_size = header.size().try_into().unwrap();
+        let mut payload: Vec<u8> = vec![0; payload_size];
+
+        payload.copy_from_slice(&data[header_size + 2..header_size + 2 + payload_size]);
+
+        Ok(ProtoPayload { header, payload })
     }
 }
