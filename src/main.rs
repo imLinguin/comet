@@ -1,19 +1,18 @@
-use std::{
-    collections::HashMap,
-    sync::{Arc, Mutex},
-};
+use std::{collections::HashMap, sync::Arc};
 
 use clap::Parser;
 use env_logger::Env;
-use log::{error, info};
+use log::{error, info, warn};
 use reqwest::Client;
 use tokio::net::TcpListener;
+use tokio::sync::Mutex;
 
 mod api;
 mod constants;
 mod heroic;
 mod proto;
 
+use crate::api::structs::Token;
 use api::notification_pusher::NotificationPusherClient;
 
 #[derive(Parser, Debug)]
@@ -23,9 +22,6 @@ struct Args {
     access_token: Option<String>,
     #[arg(long, help = "Provide refresh token (for creating game sessions)")]
     refresh_token: Option<String>,
-    #[arg(long, help = "Provide user id")]
-    user_id: Option<String>,
-
     #[arg(long = "from-heroic", help = "Load tokens from heroic")]
     heroic: bool,
 }
@@ -33,10 +29,9 @@ struct Args {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    let logger_env = Env::new().filter("COMET_LOG").default_filter_or("info");
+    let logger_env = Env::new().default_filter_or("info");
     env_logger::init_from_env(logger_env);
 
-    let user_id: String;
     let access_token: String;
     let refresh_token: String;
 
@@ -46,12 +41,6 @@ async fn main() {
             .fields
             .get(constants::GALAXY_CLIENT_ID)
             .expect("No Galaxy credentials");
-        user_id = config
-            .get("user_id")
-            .expect("user_id not present in heroic config")
-            .as_str()
-            .unwrap()
-            .to_owned();
 
         access_token = config
             .get("access_token")
@@ -67,9 +56,17 @@ async fn main() {
             .to_owned();
     } else {
         access_token = args.access_token.expect("Access token is required");
-        user_id = args.user_id.expect("User id is required");
         refresh_token = args.refresh_token.expect("Refresh token is required");
     }
+
+    let reqwest_client = Client::builder()
+        .user_agent(format!("Comet/{}", env!("CARGO_PKG_VERSION")))
+        .build()
+        .expect("Failed to build reqwest client");
+    let user_info = api::gog::users::get_user_info(access_token.as_str(), &reqwest_client)
+        .await
+        .expect("Failed to get user info, make sure access token is valid");
+    let user_info = Arc::new(user_info);
 
     let listener = TcpListener::bind("127.0.0.1:9977")
         .await
@@ -79,19 +76,21 @@ async fn main() {
     let shutdown_token = tokio_util::sync::CancellationToken::new();
     let pusher_shutdown = shutdown_token.clone(); // Handler for notifications-pusher
     let cloned_shutdown = shutdown_token.clone(); // Handler to share between main thread and sockets
-    let reqwest_client = Client::builder()
-        .user_agent(format!("Comet/{}", env!("CARGO_PKG_VERSION")))
-        .build()
-        .expect("Failed to build reqwest client");
 
     let token_store: constants::TokenStorage = Arc::new(Mutex::new(HashMap::new()));
-    let mut notification_pusher_client =
-        NotificationPusherClient::new(&access_token, topic_sender.clone()).await;
+    let galaxy_token = Token::new(access_token.clone(), refresh_token.clone());
+    let mut store_lock = token_store.lock().await;
+    store_lock.insert(String::from(constants::GALAXY_CLIENT_ID), galaxy_token);
+    drop(store_lock);
 
+    let notifications_pusher_topic_sender = topic_sender.clone();
     let pusher_handle = tokio::spawn(async move {
+        let mut notification_pusher_client =
+            NotificationPusherClient::new(&access_token, notifications_pusher_topic_sender).await;
         notification_pusher_client
             .handle_loop(pusher_shutdown)
-            .await
+            .await;
+        warn!("Notification pusher exiting");
     });
     tokio::spawn(async move {
         tokio::signal::ctrl_c()
@@ -102,6 +101,7 @@ async fn main() {
 
     info!("Listening on port 9977");
     let socket_shutdown = cloned_shutdown.clone();
+    let cloned_user_info = user_info.clone();
     loop {
         let acceptance = tokio::select! {
             accept = listener.accept() => {Some(accept)}
@@ -126,11 +126,13 @@ async fn main() {
         let cloned_client = reqwest_client.clone();
         let cloned_token_store = token_store.clone();
         let shutdown_handler = socket_shutdown.clone();
+        let socket_user_info = cloned_user_info.clone();
         tokio::spawn(async move {
             api::handlers::entry_point(
                 socket,
                 cloned_client,
                 cloned_token_store,
+                socket_user_info,
                 socket_topic_receiver,
                 shutdown_handler,
             )

@@ -7,7 +7,7 @@ pub enum MessageHandlingErrorKind {
 
 #[derive(Debug)]
 pub struct MessageHandlingError {
-    kind: MessageHandlingErrorKind,
+    pub kind: MessageHandlingErrorKind,
 }
 
 impl std::error::Error for MessageHandlingError {}
@@ -15,9 +15,6 @@ impl std::error::Error for MessageHandlingError {}
 impl MessageHandlingError {
     pub fn new(kind: MessageHandlingErrorKind) -> MessageHandlingError {
         MessageHandlingError { kind }
-    }
-    pub fn kind(&self) -> &MessageHandlingErrorKind {
-        &self.kind
     }
 }
 

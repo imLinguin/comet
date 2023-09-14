@@ -5,7 +5,7 @@ Open Source implementation of GOG Galaxy's Communication Service
 This project aims to implement calls made by game through SDK.  
 Note: that means it can't and won't replace Communication Service in official client
 
-This will provide minimal and platform agnostic SDK. For use in game launchers like Heroic or Lutris
+This will provide minimal and platform-agnostic SDK. For use in game launchers like Heroic or Lutris
 
 Project is continuation of Yepoleb's work [https://gitlab.com/Yepoleb/comet/](https://gitlab.com/Yepoleb/comet/) but in
 ~~Python~~ now in Rust
@@ -14,29 +14,25 @@ Project is continuation of Yepoleb's work [https://gitlab.com/Yepoleb/comet/](ht
 
 Excluding Overlay, and Cloud Sync related.
 
-- [x] AUTH_INFO_REQUEST
-- [x] GET_USER_STATS_REQUEST
-- [x] SUBSCRIBE_TOPIC_REQUEST
-- [x] UPDATE_USER_STAT_REQUEST
-- [x] DELETE_USER_STATS_REQUEST
+- [ ] AUTH_INFO_REQUEST
+- [ ] GET_USER_STATS_REQUEST
+- [ ] SUBSCRIBE_TOPIC_REQUEST
+- [ ] UPDATE_USER_STAT_REQUEST
+- [ ] DELETE_USER_STATS_REQUEST
 - [ ] GET_GLOBAL_STATS_REQUEST
-- [x] GET_USER_ACHIEVEMENTS_REQUEST
-- [x] UNLOCK_USER_ACHIEVEMENT_REQUEST
-- [x] CLEAR_USER_ACHIEVEMENT_REQUEST
-- [x] DELETE_USER_ACHIEVEMENTS_REQUEST
-- [x] GET_LEADERBOARDS_REQUEST
-- [x] GET_LEADERBOARD_ENTRIES_GLOBAL_REQUEST
-- [x] GET_LEADERBOARD_ENTRIES_AROUND_USER_REQUEST
+- [ ] GET_USER_ACHIEVEMENTS_REQUEST
+- [ ] UNLOCK_USER_ACHIEVEMENT_REQUEST
+- [ ] CLEAR_USER_ACHIEVEMENT_REQUEST
+- [ ] DELETE_USER_ACHIEVEMENTS_REQUEST
+- [ ] GET_LEADERBOARDS_REQUEST
+- [ ] GET_LEADERBOARD_ENTRIES_GLOBAL_REQUEST
+- [ ] GET_LEADERBOARD_ENTRIES_AROUND_USER_REQUEST
 - [ ] GET_LEADERBOARD_ENTRIES_FOR_USERS_REQUEST
 - [ ] SET_LEADERBOARD_SCORE_REQUEST
 - [ ] AUTH_STATE_CHANGE_NOTIFICATION
 - [ ] GET_LEADERBOARDS_BY_KEY_REQUEST
 - [ ] CREATE_LEADERBOARD_REQUEST
-- [ ] GET_USER_TIME_PLAYED_REQUEST
-- [ ] SHARE_FILE_REQUEST
-- [ ] START_GAME_SESSION_REQUEST
 - [ ] OVERLAY_STATE_CHANGE_NOTIFICATION
-- [ ] CONFIGURE_ENVIRONMENT_REQUEST
 
 ## Experimental support
 
@@ -49,15 +45,7 @@ Following requests are supported experimentally (they haven't been tested well)
 
 Currently service supports small amount of calls, but these are enough to play Gwent for example.
 
-### Dependencies
-
-Currently the only dependency is python protocolbuffers and aiohttp
-
-```sh
-pip install -r requirements.txt
-```
-
-Alternatively you can install it using your Linux distro's package manager
+Check [running](#running)
 
 ### Authentication
 
@@ -88,13 +76,13 @@ https://login.gog.com/auth?client_id=46899977096215655&layout=galaxy&redirect_ur
 ### Running
 
 ```
-./bin/comet --token "<access_token>" --refresh_token "<refresh_token>" --user-id <user_id>
+comet --token "<access_token>" --refresh_token "<refresh_token>" --user-id <user_id>
 ```
 
 Or if you are using Heroic/gogdl
 
 ```
-./bin/comet --from-heroic
+comet --from-heroic
 ```
 
 ## Contributing

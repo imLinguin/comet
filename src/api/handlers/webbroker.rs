@@ -1,25 +1,19 @@
 use log::warn;
 use protobuf::Message;
-use reqwest::Client;
 
 use super::error::*;
 use crate::proto::common_utils::ProtoPayload;
-use crate::proto::gog_protocols_pb;
 use crate::proto::galaxy_protocols_webbroker_service::{
-    MessageType, SubscribeTopicRequest, SubscribeTopicResponse, MessageSort,
+    MessageSort, MessageType, SubscribeTopicRequest, SubscribeTopicResponse,
 };
+use crate::proto::gog_protocols_pb;
 
-pub async fn entry_point(
-    payload: ProtoPayload,
-    reqwest_client: &Client,
-) -> Result<ProtoPayload, MessageHandlingError> {
+pub async fn entry_point(payload: &ProtoPayload) -> Result<ProtoPayload, MessageHandlingError> {
     let header = &payload.header;
 
     let message_type = header.type_();
 
-    if message_type == MessageType::AUTH_REQUEST as u32 {
-        Ok(payload)
-    } else if message_type == MessageType::SUBSCRIBE_TOPIC_REQUEST as u32 {
+    if message_type == MessageType::SUBSCRIBE_TOPIC_REQUEST as u32 {
         subscribe_topic_request(payload).await
     } else {
         warn!(
@@ -34,7 +28,7 @@ pub async fn entry_point(
 
 // Actual handlers of the functions
 async fn subscribe_topic_request(
-    payload: ProtoPayload,
+    payload: &ProtoPayload,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     // This is the stub that just responds with success
     let request_data = SubscribeTopicRequest::parse_from_bytes(&payload.payload);
@@ -49,11 +43,14 @@ async fn subscribe_topic_request(
     };
 
     let mut new_data = SubscribeTopicResponse::new();
-    let mut header = gog_protocols_pb::Header::new(); 
+    let mut header = gog_protocols_pb::Header::new();
     header.set_sort(MessageSort::MESSAGE_SORT as u32);
     header.set_type(MessageType::SUBSCRIBE_TOPIC_RESPONSE as u32);
     new_data.set_topic(topic);
 
     let buffer = new_data.write_to_bytes().unwrap();
-    Ok(ProtoPayload{ header, payload: buffer})
+    Ok(ProtoPayload {
+        header,
+        payload: buffer,
+    })
 }
