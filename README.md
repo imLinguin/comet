@@ -49,15 +49,13 @@ Following requests are supported experimentally (they haven't been tested well)
 
 Currently service supports small amount of calls, but these are enough to play Gwent for example.
 
-### Dependencies
+### Installation
 
-Currently the only dependency is python protocolbuffers and aiohttp
+You can install the most up-to-date version via pip:
 
-```sh
-pip install -r requirements.txt
+``` sh
+pip install git+https://github.com/imLinguin/comet.git
 ```
-
-Alternatively you can install it using your Linux distro's package manager
 
 ### Authentication
 
@@ -88,13 +86,13 @@ https://login.gog.com/auth?client_id=46899977096215655&layout=galaxy&redirect_ur
 ### Running
 
 ```
-./bin/comet --token "<access_token>" --refresh_token "<refresh_token>" --user-id <user_id>
+comet --token "<access_token>" --refresh_token "<refresh_token>" --user-id <user_id>
 ```
 
 Or if you are using Heroic/gogdl
 
 ```
-./bin/comet --from-heroic
+comet --from-heroic
 ```
 
 ## Contributing
