@@ -2,7 +2,7 @@ use crate::api::gog;
 use crate::api::structs::UserInfo;
 use crate::constants;
 use log::{debug, info, warn};
-use protobuf::Message;
+use protobuf::{Enum, Message};
 use reqwest::Client;
 use std::sync::Arc;
 
@@ -24,11 +24,14 @@ pub async fn entry_point(
     debug!("Handling in communication service");
     let header = &payload.header;
 
-    let message_type = header.type_();
+    let message_type: i32 = header.type_().try_into().unwrap();
 
-    if message_type == MessageType::AUTH_INFO_REQUEST as u32 {
+    if message_type == MessageType::AUTH_INFO_REQUEST.value() {
         auth_info_request(payload, token_store, user_info, reqwest_client).await
-    } else {
+    } else if message_type == MessageType::GET_USER_STATS_REQUEST.value() {
+        get_user_stats(payload, token_store, user_info, reqwest_client).await
+    } 
+    else {
         warn!(
             "Unhandled communication service message type {}",
             message_type
@@ -55,7 +58,7 @@ async fn auth_info_request(
         }
     };
 
-    let _pid = request_data.game_pid();
+    let pid = request_data.game_pid();
     // TODO: Decide whether the process is trusted
 
     let client_id = request_data.client_id();
@@ -85,8 +88,8 @@ async fn auth_info_request(
 
     // Use new refresh_token to prepare response
     let mut header = Header::new();
-    header.set_type(MessageType::AUTH_INFO_RESPONSE as u32);
-    header.set_sort(MessageSort::MESSAGE_SORT as u32);
+    header.set_type(MessageType::AUTH_INFO_RESPONSE.value().try_into().unwrap());
+    header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());
 
     let mut content = AuthInfoResponse::new();
     content.set_refresh_token(new_token.refresh_token);
@@ -102,4 +105,14 @@ async fn auth_info_request(
         header,
         payload: content_buffer,
     })
+}
+
+async fn get_user_stats(
+    payload: &ProtoPayload,
+    token_store: &TokenStorage,
+    user_info: Arc<UserInfo>,
+    reqwest_client: &Client,
+    ) -> Result<ProtoPayload, MessageHandlingError> {
+
+    todo!();
 }

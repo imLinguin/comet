@@ -55,8 +55,8 @@ impl NotificationPusherClient {
         info!("Connected to notifications-pusher");
 
         let mut header = Header::new();
-        header.set_sort(MessageSort::MESSAGE_SORT as u32);
-        header.set_type(MessageType::AUTH_REQUEST as u32);
+        header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());
+        header.set_type(MessageType::AUTH_REQUEST.value().try_into().unwrap());
 
         let mut request_body = AuthRequest::new();
         let token_payload = format!("Bearer {}", access_token);
@@ -64,7 +64,7 @@ impl NotificationPusherClient {
 
         let request_body = request_body.write_to_bytes().unwrap();
 
-        header.set_size(request_body.len() as u32);
+        header.set_size(request_body.len().try_into().unwrap());
         header.set_oseq(10000);
         let header_data = header.write_to_bytes().unwrap();
         let size: u16 = header_data.len().try_into().unwrap();
@@ -122,14 +122,14 @@ impl NotificationPusherClient {
                             continue;
                         }
                     };
-                    let msg_type = parsed_message.header.type_();
-                    let sort = parsed_message.header.sort();
+                    let msg_type: i32 = parsed_message.header.type_().try_into().unwrap();
+                    let sort: i32 = parsed_message.header.sort().try_into().unwrap();
 
-                    if sort != MessageSort::MESSAGE_SORT as u32 {
+                    if sort != MessageSort::MESSAGE_SORT.value() {
                         warn!("Notifications pusher sort has unexpected value {}, ignoring... this may introduce unexpected behavior", sort);
                     }
 
-                    if msg_type == MessageType::AUTH_RESPONSE as u32 {
+                    if msg_type == MessageType::AUTH_RESPONSE.value() {
                         // No content
                         let status_code = parsed_message
                             .header
@@ -142,8 +142,8 @@ impl NotificationPusherClient {
                                 if enum_code == Status::OK {
                                     info!("Subscribing to chat, friends, presence");
                                     let mut header = Header::new();
-                                    header.set_sort(MessageSort::MESSAGE_SORT as u32);
-                                    header.set_type(MessageType::SUBSCRIBE_TOPIC_REQUEST as u32);
+                                    header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());
+                                    header.set_type(MessageType::SUBSCRIBE_TOPIC_REQUEST.value().try_into().unwrap());
                                     let mut oseq = 1020;
                                     for topic in ["chat", "friends", "presence"] {
                                         let mut message_buffer: Vec<u8> = Vec::new();
@@ -180,7 +180,7 @@ impl NotificationPusherClient {
                                 }
                             }
                         }
-                    } else if msg_type == MessageType::SUBSCRIBE_TOPIC_RESPONSE as u32 {
+                    } else if msg_type == MessageType::SUBSCRIBE_TOPIC_RESPONSE.value() {
                         let topic_response =
                             SubscribeTopicResponse::parse_from_bytes(&parsed_message.payload);
                         match topic_response {
@@ -192,7 +192,7 @@ impl NotificationPusherClient {
                                 error!("Failed to parse topic response payload {:?}", err)
                             }
                         }
-                    } else if msg_type == MessageType::MESSAGE_FROM_TOPIC as u32 {
+                    } else if msg_type == MessageType::MESSAGE_FROM_TOPIC.value() {
                         info!("Recieved message from topic");
                         if let Err(error) = self.topic_sender.send(msg_data) {
                             error!(

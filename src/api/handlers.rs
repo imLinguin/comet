@@ -26,7 +26,6 @@ pub async fn entry_point(
     mut topic_receiver: Receiver<Vec<u8>>,
     shutdown_token: CancellationToken,
 ) {
-    let mut size_buffer: [u8; 2] = [0; 2];
     if let Err(err) = socket.readable().await {
         error!("Failed to wait for socket to be readable {}", err);
         let _ = socket.shutdown().await;
@@ -35,10 +34,9 @@ pub async fn entry_point(
     debug!("Awaiting messages");
     loop {
         tokio::select! {
-          size_read = socket.read_exact(&mut size_buffer) => {
+          size_read = socket.read_u16() => {
             match size_read {
-               Ok(_) => {
-                   let h_size = u16::from_be_bytes(size_buffer);
+               Ok(h_size) => {
                    if let Err(err) = handle_message(h_size, &mut socket, &token_store, user_info.clone(), &reqwest_client).await {
                             match err.kind {
                                 MessageHandlingErrorKind::NotImplemented => {

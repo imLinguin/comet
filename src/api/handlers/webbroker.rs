@@ -1,5 +1,5 @@
 use log::warn;
-use protobuf::Message;
+use protobuf::{Message, Enum};
 
 use super::error::*;
 use crate::proto::common_utils::ProtoPayload;
@@ -11,9 +11,9 @@ use crate::proto::gog_protocols_pb;
 pub async fn entry_point(payload: &ProtoPayload) -> Result<ProtoPayload, MessageHandlingError> {
     let header = &payload.header;
 
-    let message_type = header.type_();
+    let message_type: i32 = header.type_().try_into().unwrap();
 
-    if message_type == MessageType::SUBSCRIBE_TOPIC_REQUEST as u32 {
+    if message_type == MessageType::SUBSCRIBE_TOPIC_REQUEST.value() {
         subscribe_topic_request(payload).await
     } else {
         warn!(
@@ -44,8 +44,8 @@ async fn subscribe_topic_request(
 
     let mut new_data = SubscribeTopicResponse::new();
     let mut header = gog_protocols_pb::Header::new();
-    header.set_sort(MessageSort::MESSAGE_SORT as u32);
-    header.set_type(MessageType::SUBSCRIBE_TOPIC_RESPONSE as u32);
+    header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());
+    header.set_type(MessageType::SUBSCRIBE_TOPIC_RESPONSE.value().try_into().unwrap());
     new_data.set_topic(topic);
 
     let buffer = new_data.write_to_bytes().unwrap();
