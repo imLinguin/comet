@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use clap::Parser;
-use env_logger::Env;
+use env_logger::{Env, Target, Builder};
 use log::{error, info, warn};
 use reqwest::Client;
 use tokio::net::TcpListener;
@@ -29,8 +29,8 @@ struct Args {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    let logger_env = Env::new().default_filter_or("info");
-    env_logger::init_from_env(logger_env);
+    let env = Env::new().filter_or("COMET_LOG", "info");
+    Builder::from_env(env).target(Target::Stderr).init();
 
     let access_token: String;
     let refresh_token: String;

@@ -80,7 +80,6 @@ pub async fn handle_message(
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<(), MessageHandlingError> {
-    info!("Parsing header of size {}", h_size);
     let payload = utils::parse_payload(h_size, socket).await;
 
     let payload = match payload {

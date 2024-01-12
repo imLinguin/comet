@@ -17,7 +17,7 @@ pub async fn entry_point(payload: &ProtoPayload) -> Result<ProtoPayload, Message
         subscribe_topic_request(payload).await
     } else {
         warn!(
-            "Recieved unsupported webbroker message type {}",
+            "Received unsupported webbroker message type {}",
             message_type
         );
         Err(MessageHandlingError::new(
