@@ -30,8 +30,7 @@ pub async fn entry_point(
         auth_info_request(payload, token_store, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_USER_STATS_REQUEST.value() {
         get_user_stats(payload, token_store, user_info, reqwest_client).await
-    } 
-    else {
+    } else {
         warn!(
             "Unhandled communication service message type {}",
             message_type
@@ -49,14 +48,8 @@ async fn auth_info_request(
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request_data = AuthInfoRequest::parse_from_bytes(&payload.payload);
-    let request_data = match request_data {
-        Ok(proto) => proto,
-        Err(err) => {
-            return Err(MessageHandlingError::new(MessageHandlingErrorKind::Proto(
-                err,
-            )))
-        }
-    };
+    let request_data = request_data
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
 
     let pid = request_data.game_pid();
     // TODO: Decide whether the process is trusted
@@ -112,7 +105,6 @@ async fn get_user_stats(
     token_store: &TokenStorage,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
-    ) -> Result<ProtoPayload, MessageHandlingError> {
-
+) -> Result<ProtoPayload, MessageHandlingError> {
     todo!();
 }

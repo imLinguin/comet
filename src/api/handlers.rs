@@ -82,14 +82,9 @@ pub async fn handle_message(
 ) -> Result<(), MessageHandlingError> {
     let payload = utils::parse_payload(h_size, socket).await;
 
-    let payload = match payload {
-        Ok(p) => p,
-        Err(error) => {
-            return Err(MessageHandlingError::new(MessageHandlingErrorKind::IO(
-                error,
-            )));
-        }
-    };
+    let payload =
+        payload.map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::IO(err)))?;
+
     let sort = payload.header.sort();
     let type_ = payload.header.type_();
 
@@ -124,8 +119,9 @@ pub async fn handle_message(
     message_buffer.extend(header_buffer);
     message_buffer.extend(result.payload);
 
-    if let Err(err) = socket.write_all(message_buffer.as_slice()).await {
-        return Err(MessageHandlingError::new(MessageHandlingErrorKind::IO(err)));
-    };
+    socket
+        .write_all(message_buffer.as_slice())
+        .await
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::IO(err)))?;
     Ok(())
 }

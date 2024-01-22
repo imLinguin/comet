@@ -142,8 +142,15 @@ impl NotificationPusherClient {
                                 if enum_code == Status::OK {
                                     info!("Subscribing to chat, friends, presence");
                                     let mut header = Header::new();
-                                    header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());
-                                    header.set_type(MessageType::SUBSCRIBE_TOPIC_REQUEST.value().try_into().unwrap());
+                                    header.set_sort(
+                                        MessageSort::MESSAGE_SORT.value().try_into().unwrap(),
+                                    );
+                                    header.set_type(
+                                        MessageType::SUBSCRIBE_TOPIC_REQUEST
+                                            .value()
+                                            .try_into()
+                                            .unwrap(),
+                                    );
                                     let mut oseq = 1020;
                                     for topic in ["chat", "friends", "presence"] {
                                         let mut message_buffer: Vec<u8> = Vec::new();

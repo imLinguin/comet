@@ -1,5 +1,5 @@
 use log::warn;
-use protobuf::{Message, Enum};
+use protobuf::{Enum, Message};
 
 use super::error::*;
 use crate::proto::common_utils::ProtoPayload;
@@ -33,19 +33,19 @@ async fn subscribe_topic_request(
     // This is the stub that just responds with success
     let request_data = SubscribeTopicRequest::parse_from_bytes(&payload.payload);
 
-    let topic = match request_data {
-        Ok(proto) => String::from(proto.topic()),
-        Err(err) => {
-            return Err(MessageHandlingError::new(MessageHandlingErrorKind::Proto(
-                err,
-            )))
-        }
-    };
+    let proto = request_data
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+    let topic = String::from(proto.topic());
 
     let mut new_data = SubscribeTopicResponse::new();
     let mut header = gog_protocols_pb::Header::new();
     header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());
-    header.set_type(MessageType::SUBSCRIBE_TOPIC_RESPONSE.value().try_into().unwrap());
+    header.set_type(
+        MessageType::SUBSCRIBE_TOPIC_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
     new_data.set_topic(topic);
 
     let buffer = new_data.write_to_bytes().unwrap();

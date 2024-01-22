@@ -1,7 +1,7 @@
 use std::{collections::HashMap, sync::Arc};
 
 use clap::Parser;
-use env_logger::{Env, Target, Builder};
+use env_logger::{Builder, Env, Target};
 use log::{error, info, warn};
 use reqwest::Client;
 use tokio::net::TcpListener;
