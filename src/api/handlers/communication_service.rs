@@ -72,12 +72,7 @@ async fn auth_info_request(
         refresh_token.as_str(),
         reqwest_client,
     )
-    .await
-    .expect("Failed to obtain the token, game will run offline");
-
-    let mut token_storage = token_store.lock().await;
-    token_storage.insert(String::from(client_id), new_token.clone());
-    drop(token_storage);
+    .await;
 
     // Use new refresh_token to prepare response
     let mut header = Header::new();
@@ -85,7 +80,12 @@ async fn auth_info_request(
     header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());
 
     let mut content = AuthInfoResponse::new();
-    content.set_refresh_token(new_token.refresh_token);
+    if let Ok(token) = new_token {
+        let mut token_storage = token_store.lock().await;
+        token_storage.insert(String::from(client_id), token.clone());
+        drop(token_storage);
+        content.set_refresh_token(token.refresh_token);
+    }
     content.set_region(REGION_WORLD_WIDE);
     content.set_environment_type(ENVIRONMENT_PRODUCTION);
     content.set_user_id(user_info.galaxy_user_id.parse().unwrap());

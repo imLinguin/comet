@@ -12,7 +12,7 @@ mod constants;
 mod heroic;
 mod proto;
 
-use crate::api::structs::Token;
+use crate::api::structs::{Token, UserInfo};
 use api::notification_pusher::NotificationPusherClient;
 
 #[derive(Parser, Debug)]
@@ -22,6 +22,10 @@ struct Args {
     access_token: Option<String>,
     #[arg(long, help = "Provide refresh token (for creating game sessions)")]
     refresh_token: Option<String>,
+    #[arg(long, help = "Galaxy user id from /userData.json")]
+    user_id: String,
+    #[arg(long, help = "User name")]
+    username: String,
     #[arg(long = "from-heroic", help = "Load tokens from heroic")]
     heroic: bool,
 }
@@ -63,10 +67,11 @@ async fn main() {
         .user_agent(format!("Comet/{}", env!("CARGO_PKG_VERSION")))
         .build()
         .expect("Failed to build reqwest client");
-    let user_info = api::gog::users::get_user_info(access_token.as_str(), &reqwest_client)
-        .await
-        .expect("Failed to get user info, make sure access token is valid");
-    let user_info = Arc::new(user_info);
+
+    let user_info = Arc::new(UserInfo {
+        username: args.username,
+        galaxy_user_id: args.user_id,
+    });
 
     let listener = TcpListener::bind("127.0.0.1:9977")
         .await
@@ -85,11 +90,13 @@ async fn main() {
 
     let notifications_pusher_topic_sender = topic_sender.clone();
     let pusher_handle = tokio::spawn(async move {
-        let mut notification_pusher_client =
-            NotificationPusherClient::new(&access_token, notifications_pusher_topic_sender).await;
-        notification_pusher_client
-            .handle_loop(pusher_shutdown)
-            .await;
+        let mut notification_pusher_client = NotificationPusherClient::new(
+            &access_token,
+            notifications_pusher_topic_sender,
+            pusher_shutdown,
+        )
+        .await;
+        notification_pusher_client.handle_loop().await;
         warn!("Notification pusher exiting");
     });
     tokio::spawn(async move {
@@ -103,22 +110,18 @@ async fn main() {
     let socket_shutdown = cloned_shutdown.clone();
     let cloned_user_info = user_info.clone();
     loop {
-        let acceptance = tokio::select! {
-            accept = listener.accept() => {Some(accept)}
-            _ = socket_shutdown.cancelled() => {None}
+        let (socket, _addr) = tokio::select! {
+            accept = listener.accept() => {
+                match accept {
+                    Ok(accept) => accept,
+                    Err(error) => {
+                        error!("Failed to accept the connection {:?}", error);
+                        continue;
+                    }
+                }
+            }
+            _ = socket_shutdown.cancelled() => {break}
         };
-
-        let acceptance = match acceptance {
-            Some(acc) => acc,
-            None => break,
-        };
-
-        if let Err(error) = acceptance {
-            error!("Failed to accept the connection {:?}", error);
-            continue;
-        }
-
-        let (socket, _addr) = acceptance.unwrap();
 
         // Spawn handler
         let socket_topic_receiver = topic_sender.subscribe();

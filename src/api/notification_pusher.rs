@@ -3,6 +3,7 @@ use log::{debug, error, info, warn};
 use protobuf::{Enum, Message, UnknownValueRef};
 use tokio::net::TcpStream;
 use tokio::sync::broadcast::Sender;
+use tokio::time;
 use tokio_tungstenite::tungstenite;
 use tokio_tungstenite::{connect_async, MaybeTlsStream, WebSocketStream};
 use tokio_util::sync::CancellationToken;
@@ -20,30 +21,46 @@ pub struct NotificationPusherClient {
     pusher_connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
     access_token: String,
     topic_sender: Sender<Vec<u8>>,
+    shutdown_token: CancellationToken,
 }
 
 impl NotificationPusherClient {
     pub async fn new(
         access_token: &String,
         topic_sender: Sender<Vec<u8>>,
+        shutdown_token: CancellationToken,
     ) -> NotificationPusherClient {
+        debug!("Notification pusher init");
         let mut retries = 5;
         let ws_stream = loop {
             let stream = NotificationPusherClient::init_connection(access_token).await;
-            if let Ok(stream) = stream {
-                break stream;
-            } else if retries > 0 {
-                tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
-                retries -= 1;
-            } else {
-                panic!("Failed to create pusher connection");
+            match stream {
+                Ok(stream) => break Some(stream),
+                Err(tungstenite::Error::Io(_err)) => {
+                    tokio::select! {
+                        _ = time::sleep(time::Duration::from_secs(10)) => {},
+                        _ = shutdown_token.cancelled() => { break None }
+                    }
+                }
+                Err(err) => {
+                    if retries > 0 {
+                        tokio::select! {
+                            _ = time::sleep(time::Duration::from_secs(3)) => {},
+                            _ = shutdown_token.cancelled() => { break None }
+                        }
+                        retries -= 1;
+                    } else {
+                        panic!("Notification pusher init failed, {:?}", err);
+                    }
+                }
             }
         };
 
         NotificationPusherClient {
-            pusher_connection: ws_stream,
+            pusher_connection: ws_stream.expect("Unable to get notification pusher connection"),
             access_token: access_token.clone(),
             topic_sender,
+            shutdown_token,
         }
     }
 
@@ -83,21 +100,26 @@ impl NotificationPusherClient {
         Ok(ws_stream)
     }
 
-    pub async fn handle_loop(&mut self, shutdown_token: CancellationToken) {
+    pub async fn handle_loop(&mut self) {
         loop {
             loop {
                 let message = tokio::select! {
-                    msg = self.pusher_connection.next() => {msg}
-                    _ = shutdown_token.cancelled() => {
+                    msg = self.pusher_connection.next() => {
+                        if msg.is_none() {
+                            debug!("Connection reset");
+                            break;
+                        }
+                        msg.unwrap()
+                    }
+                    _ = time::sleep(time::Duration::from_secs(30)) => {
+                        // TODO: Implement pings to make sure connection stays alive
+                        continue
+                    }
+                    _ = self.shutdown_token.cancelled() => {
                         // We are shutting down, we can ignore any errors
                         let _ = self.pusher_connection.close(None).await;
-                        None
+                        break;
                     }
-                };
-
-                let message = match message {
-                    Some(msg) => msg,
-                    None => break,
                 };
 
                 let message = match message {
@@ -212,20 +234,27 @@ impl NotificationPusherClient {
                     }
                 }
             }
-            if !shutdown_token.is_cancelled() {
+            if !self.shutdown_token.is_cancelled() {
                 tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
                 let mut retries = 5;
                 let connection = loop {
+                    if self.shutdown_token.is_cancelled() {
+                        break None;
+                    }
                     let stream =
                         NotificationPusherClient::init_connection(&self.access_token).await;
                     if let Ok(stream) = stream {
-                        break stream;
+                        break Some(stream);
                     } else if retries > 0 {
                         tokio::time::sleep(tokio::time::Duration::from_secs(3)).await;
                         retries -= 1;
                     }
                 };
-                self.pusher_connection = connection;
+                if let Some(connection) = connection {
+                    self.pusher_connection = connection;
+                } else {
+                    break;
+                }
             } else {
                 break;
             }
