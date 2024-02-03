@@ -1,4 +1,5 @@
 mod communication_service;
+mod context;
 pub mod error;
 pub mod utils;
 mod webbroker;
@@ -7,6 +8,7 @@ use crate::constants::TokenStorage;
 use error::*;
 use std::sync::Arc;
 
+use crate::api::handlers::context::HandlerContext;
 use crate::api::structs::UserInfo;
 use log::{debug, error, info, warn};
 use protobuf::Message;
@@ -31,13 +33,14 @@ pub async fn entry_point(
         let _ = socket.shutdown().await;
         return;
     }
+    let mut context = HandlerContext::new(socket, shutdown_token.clone(), token_store);
     debug!("Awaiting messages");
     loop {
         tokio::select! {
-          size_read = socket.read_u16() => {
+          size_read = context.socket_mut().read_u16() => {
             match size_read {
                Ok(h_size) => {
-                   if let Err(err) = handle_message(h_size, &mut socket, &token_store, user_info.clone(), &reqwest_client).await {
+                   if let Err(err) = handle_message(h_size, &mut context, user_info.clone(), &reqwest_client).await {
                             match err.kind {
                                 MessageHandlingErrorKind::NotImplemented => {
                                     warn!("Request type not implemented")
@@ -61,7 +64,7 @@ pub async fn entry_point(
 
           topic_message = topic_receiver.recv() => {
             match topic_message {
-                Ok(message) => { if let Err(err) = socket.write_all(message.as_slice()).await {error!("Failed to forward topic message to socket {}", err);} }
+                Ok(message) => { if let Err(err) = context.socket_mut().write_all(message.as_slice()).await {error!("Failed to forward topic message to socket {}", err);} }
                 Err(err) => { error!("Failed to read topic_message {}", err); }
             }
           }
@@ -75,12 +78,11 @@ pub async fn entry_point(
 
 pub async fn handle_message(
     h_size: u16,
-    socket: &mut TcpStream,
-    token_store: &TokenStorage,
+    context: &mut HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<(), MessageHandlingError> {
-    let payload = utils::parse_payload(h_size, socket).await;
+    let payload = utils::parse_payload(h_size, context.socket_mut()).await;
 
     let payload =
         payload.map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::IO(err)))?;
@@ -90,10 +92,7 @@ pub async fn handle_message(
 
     debug!("Parsing message {} {}", sort, type_);
     let mut result = match sort {
-        1 => {
-            communication_service::entry_point(&payload, token_store, user_info, reqwest_client)
-                .await
-        }
+        1 => communication_service::entry_point(&payload, context, user_info, reqwest_client).await,
         2 => webbroker::entry_point(&payload).await,
         _ => {
             warn!("Unhandled sort {}", sort);
@@ -119,7 +118,8 @@ pub async fn handle_message(
     message_buffer.extend(header_buffer);
     message_buffer.extend(result.payload);
 
-    socket
+    context
+        .socket_mut()
         .write_all(message_buffer.as_slice())
         .await
         .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::IO(err)))?;

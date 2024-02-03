@@ -6,10 +6,13 @@ use log::{error, info, warn};
 use reqwest::Client;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
-
+#[macro_use]
+extern crate lazy_static;
 mod api;
 mod constants;
+mod db;
 mod heroic;
+mod paths;
 mod proto;
 
 use crate::api::structs::{Token, UserInfo};

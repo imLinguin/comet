@@ -1,4 +1,5 @@
 use crate::api::gog;
+use crate::api::handlers::context::HandlerContext;
 use crate::api::structs::UserInfo;
 use crate::constants;
 use log::{debug, info, warn};
@@ -6,7 +7,6 @@ use protobuf::{Enum, Message};
 use reqwest::Client;
 use std::sync::Arc;
 
-use crate::constants::TokenStorage;
 use crate::proto::common_utils::ProtoPayload;
 
 use super::error::*;
@@ -17,7 +17,7 @@ use crate::proto::gog_protocols_pb::Header;
 
 pub async fn entry_point(
     payload: &ProtoPayload,
-    token_store: &TokenStorage,
+    context: &mut HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -27,9 +27,9 @@ pub async fn entry_point(
     let message_type: i32 = header.type_().try_into().unwrap();
 
     if message_type == MessageType::AUTH_INFO_REQUEST.value() {
-        auth_info_request(payload, token_store, user_info, reqwest_client).await
+        auth_info_request(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_USER_STATS_REQUEST.value() {
-        get_user_stats(payload, token_store, user_info, reqwest_client).await
+        get_user_stats(payload, context, user_info, reqwest_client).await
     } else {
         warn!(
             "Unhandled communication service message type {}",
@@ -43,7 +43,7 @@ pub async fn entry_point(
 
 async fn auth_info_request(
     payload: &ProtoPayload,
-    token_store: &TokenStorage,
+    context: &mut HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -56,9 +56,16 @@ async fn auth_info_request(
 
     let client_id = request_data.client_id();
     let client_secret = request_data.client_secret();
+    context.identify_client(client_id, client_secret);
     info!("Client identified as {} {}", client_id, client_secret);
+    if let Err(err) = context
+        .setup_database(client_id, &user_info.galaxy_user_id)
+        .await
+    {
+        warn!("There was an error setting up the gameplay database, some functionality may be limited {:#?}", err);
+    }
 
-    let token_storage = token_store.lock().await;
+    let token_storage = context.token_store().lock().await;
     let galaxy_token = token_storage
         .get(constants::GALAXY_CLIENT_ID)
         .expect("Failed to get Galaxy token from store");
@@ -81,7 +88,7 @@ async fn auth_info_request(
 
     let mut content = AuthInfoResponse::new();
     if let Ok(token) = new_token {
-        let mut token_storage = token_store.lock().await;
+        let mut token_storage = context.token_store().lock().await;
         token_storage.insert(String::from(client_id), token.clone());
         drop(token_storage);
         content.set_refresh_token(token.refresh_token);
@@ -102,7 +109,7 @@ async fn auth_info_request(
 
 async fn get_user_stats(
     payload: &ProtoPayload,
-    token_store: &TokenStorage,
+    context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
