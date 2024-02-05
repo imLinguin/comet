@@ -14,13 +14,13 @@ Project is continuation of Yepoleb's work [https://gitlab.com/Yepoleb/comet/](ht
 
 Excluding Overlay, and Cloud Sync related.
 
-- [ ] AUTH_INFO_REQUEST
-- [ ] GET_USER_STATS_REQUEST
-- [ ] SUBSCRIBE_TOPIC_REQUEST
+- [x] AUTH_INFO_REQUEST
+- [x] GET_USER_STATS_REQUEST
+- [x] SUBSCRIBE_TOPIC_REQUEST
 - [ ] UPDATE_USER_STAT_REQUEST
 - [ ] DELETE_USER_STATS_REQUEST
 - [ ] GET_GLOBAL_STATS_REQUEST
-- [ ] GET_USER_ACHIEVEMENTS_REQUEST
+- [x] GET_USER_ACHIEVEMENTS_REQUEST
 - [ ] UNLOCK_USER_ACHIEVEMENT_REQUEST
 - [ ] CLEAR_USER_ACHIEVEMENT_REQUEST
 - [ ] DELETE_USER_ACHIEVEMENTS_REQUEST
@@ -33,13 +33,6 @@ Excluding Overlay, and Cloud Sync related.
 - [ ] GET_LEADERBOARDS_BY_KEY_REQUEST
 - [ ] CREATE_LEADERBOARD_REQUEST
 - [ ] OVERLAY_STATE_CHANGE_NOTIFICATION
-
-## Experimental support
-
-Following requests are supported experimentally (they haven't been tested well)
-
-- UPDATE_USER_STAT_REQUEST - no testing
-- UNLOCK_USER_ACHIEVEMENT_REQUEST - able to avoid unlocking the achievement again (unsure about response status code)
 
 ## How to use
 
