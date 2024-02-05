@@ -257,8 +257,9 @@ pub async fn get_achievements(
 
     for row in db_achievements {
         let visible: u8 = row.try_get("visible_while_locked").unwrap();
+        let achievement_id: i64 = row.try_get("id").unwrap();
         let new_achievement = Achievement::new(
-            row.try_get("id").unwrap(),
+            achievement_id.to_string(),
             row.try_get("key").unwrap(),
             row.try_get("name").unwrap(),
             row.try_get("description").unwrap(),
@@ -315,7 +316,7 @@ pub async fn set_achievements(
             .fetch_optional(&mut *transaction)
             .await?;
 
-    if let Some(_row) = previously_retrieved {
+    if let None = previously_retrieved {
         sqlx::query("INSERT INTO database_info VALUES ('achievements_retrieved', '1'), ('achievements_mode', $1)")
             .bind(mode)
             .execute(&mut *transaction)

@@ -252,6 +252,7 @@ async fn get_user_achievements(
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let has_achievements = db::gameplay::has_achievements(&mut context).await;
 
+    debug!("Achievements in local database: {}", has_achievements);
     let (achievements, achievements_mode) = match has_achievements {
         false => gog::achievements::fetch_achievements(
             &context,
