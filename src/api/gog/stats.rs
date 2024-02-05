@@ -1,9 +1,7 @@
 use crate::api::handlers::context::HandlerContext;
-use clap::builder::Str;
 use derive_getters::Getters;
 use reqwest::{Client, Error};
 use serde::Deserialize;
-use serde::__private::de::borrow_cow_bytes;
 
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]

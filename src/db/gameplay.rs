@@ -1,8 +1,9 @@
+use crate::api::gog::achievements::Achievement;
 use crate::api::gog::stats::{FieldValue, Stat};
 use crate::api::handlers::context::HandlerContext;
 use crate::paths;
 use log::info;
-use sqlx::{Acquire, Error, Executor, Row, SqlitePool};
+use sqlx::{Acquire, Error, Row, SqlitePool};
 
 pub const SETUP_QUERY: &str = r#"
 CREATE TABLE IF NOT EXISTS `leaderboard` (`id` INTEGER PRIMARY KEY NOT NULL,`key` TEXT UNIQUE NOT NULL,`name` TEXT NOT NULL,`sort_method` TEXT CHECK ( sort_method IN ( 'SORT_METHOD_ASCENDING', 'SORT_METHOD_DESCENDING' ) ) NOT NULL,`display_type` TEXT CHECK ( display_type IN ( 'DISPLAY_TYPE_NUMERIC', 'DISPLAY_TYPE_TIME_SECONDS', 'DISPLAY_TYPE_TIME_MILLISECONDS' ) ) NOT NULL,`score` INTEGER NOT NULL DEFAULT 0,`rank` INTEGER NOT NULL DEFAULT 0,`force_update` INTEGER CHECK ( force_update IN ( 0, 1 ) ) NOT NULL DEFAULT 0,`changed` INTEGER CHECK ( changed IN ( 0, 1 ) ) NOT NULL, entry_total_count INTEGER NOT NULL DEFAULT 0, details TEXT NOT NULL DEFAULT "");
@@ -204,6 +205,130 @@ pub async fn set_statistics(context: &mut HandlerContext, stats: &Vec<Stat>) -> 
     let _ = sqlx::query("UPDATE database_info SET value='1' WHERE key='stats_retrieved'")
         .execute(&mut *transaction)
         .await;
+
+    transaction.commit().await?;
+    Ok(())
+}
+
+pub async fn has_achievements(context: &mut HandlerContext) -> bool {
+    let database = context.db_connection();
+    let mut connection = database.acquire().await;
+    if let Err(_) = connection {
+        return false;
+    }
+    let mut connection = connection.unwrap();
+    let res = sqlx::query("SELECT * FROM database_info WHERE key='achievements_retrieved'")
+        .fetch_one(&mut *connection)
+        .await;
+
+    match res {
+        Ok(result) => {
+            let value = result
+                .try_get("value")
+                .unwrap_or("0")
+                .parse::<u8>()
+                .unwrap();
+            !result.is_empty() && value != 0
+        }
+        Err(_) => false,
+    }
+}
+
+pub async fn get_achievements(
+    context: &mut HandlerContext,
+) -> Result<(Vec<Achievement>, String), Error> {
+    let database = context.db_connection();
+    let mut connection = database.acquire().await?;
+    let mut achievements: Vec<Achievement> = Vec::new();
+
+    let mode_res = sqlx::query("SELECT * FROM database_info WHERE key='achievements_mode'")
+        .fetch_one(&mut *connection)
+        .await?;
+    let achievements_mode = mode_res.try_get("value")?;
+
+    let db_achievements = sqlx::query(
+        r#"SELECT id, key, name, description, visible_while_locked,
+        unlock_time, image_url_locked, image_url_unlocked, rarity,
+        rarity_level_description, rarity_level_slug
+        FROM achievement"#,
+    )
+    .fetch_all(&mut *connection)
+    .await?;
+
+    for row in db_achievements {
+        let visible: u8 = row.try_get("visible_while_locked").unwrap();
+        let new_achievement = Achievement::new(
+            row.try_get("id").unwrap(),
+            row.try_get("key").unwrap(),
+            row.try_get("name").unwrap(),
+            row.try_get("description").unwrap(),
+            row.try_get("image_url_locked").unwrap(),
+            row.try_get("image_url_unlocked").unwrap(),
+            visible == 1,
+            row.try_get("unlock_time").unwrap(),
+            row.try_get("rarity").unwrap(),
+            row.try_get("rarity_level_description").unwrap(),
+            row.try_get("rarity_level_slug").unwrap(),
+        );
+        achievements.push(new_achievement);
+    }
+
+    Ok((achievements, achievements_mode))
+}
+
+pub async fn set_achievements(
+    context: &mut HandlerContext,
+    achievements: &Vec<Achievement>,
+    mode: &str,
+) -> Result<(), Error> {
+    let database = context.db_connection();
+    let mut connection = database.acquire().await?;
+    let mut transaction = connection.begin().await?;
+
+    sqlx::query("DELETE FROM achievement;")
+        .execute(&mut *transaction)
+        .await?;
+
+    for achievement in achievements {
+        let achievement_id = achievement.achievement_id().parse::<i64>().unwrap();
+
+        sqlx::query(
+            "INSERT INTO achievement VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, $11)",
+        )
+        .bind(achievement_id)
+        .bind(achievement.achievement_key())
+        .bind(achievement.name())
+        .bind(achievement.description())
+        .bind(*achievement.visible() as u32)
+        .bind(achievement.date_unlocked())
+        .bind(achievement.image_url_locked())
+        .bind(achievement.image_url_unlocked())
+        .bind(achievement.rarity())
+        .bind(achievement.rarity_level_description())
+        .bind(achievement.rarity_level_slug())
+        .execute(&mut *transaction)
+        .await?;
+    }
+
+    let previously_retrieved =
+        sqlx::query("SELECT * FROM database_info WHERE key='achievements_retrieved'")
+            .fetch_optional(&mut *transaction)
+            .await?;
+
+    if let Some(_row) = previously_retrieved {
+        sqlx::query("INSERT INTO database_info VALUES ('achievements_retrieved', '1'), ('achievements_mode', $1)")
+            .bind(mode)
+            .execute(&mut *transaction)
+            .await?;
+    } else {
+        sqlx::query("UPDATE database_info SET value='1' WHERE key='achievements_retrieved'")
+            .execute(&mut *transaction)
+            .await?;
+        sqlx::query("UPDATE database_info SET value='$1' WHERE key='achievements_mode'")
+            .bind(mode)
+            .execute(&mut *transaction)
+            .await?;
+    }
 
     transaction.commit().await?;
     Ok(())

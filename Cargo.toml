@@ -22,6 +22,7 @@ env_logger = "0.11.1"
 sqlx = { version = "0.7", features = [ "runtime-tokio", "sqlite" ] }
 lazy_static = "1.4.0"
 derive-getters = "0.3.0"
+chrono = "0.4.33"
 
 [build-dependencies]
 protobuf-codegen = "3.3.0"

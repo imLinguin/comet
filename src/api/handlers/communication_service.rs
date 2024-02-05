@@ -7,10 +7,12 @@ use log::{debug, info, warn};
 use protobuf::{Enum, Message};
 use reqwest::{Client, StatusCode};
 use std::sync::Arc;
+use chrono::Utc;
 
 use crate::proto::common_utils::ProtoPayload;
 
 use super::error::*;
+use crate::proto::galaxy_protocols_communication_service::get_user_achievements_response::UserAchievement;
 use crate::proto::galaxy_protocols_communication_service::EnvironmentType::ENVIRONMENT_PRODUCTION;
 use crate::proto::galaxy_protocols_communication_service::Region::REGION_WORLD_WIDE;
 use crate::proto::galaxy_protocols_communication_service::ValueType::{
@@ -146,7 +148,7 @@ async fn get_user_stats(
             .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?,
     };
 
-    if !has_statistics && *context.db_connected() {
+    if !has_statistics {
         if let Err(err) = db::gameplay::set_statistics(context, &stats).await {
             warn!("Failed to set statistics in gameplay database {:?}", err);
         }
@@ -244,10 +246,33 @@ async fn get_user_stats(
 
 async fn get_user_achievements(
     proto_payload: &ProtoPayload,
-    context: &HandlerContext,
+    mut context: &mut HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
+    let has_achievements = db::gameplay::has_achievements(&mut context).await;
+
+    let (achievements, achievements_mode) = match has_achievements {
+        false => gog::achievements::fetch_achievements(
+            &context,
+            &user_info.galaxy_user_id,
+            reqwest_client,
+        )
+        .await
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?,
+        true => db::gameplay::get_achievements(&mut context)
+            .await
+            .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?,
+    };
+
+    if !has_achievements {
+        if let Err(err) =
+            db::gameplay::set_achievements(context, &achievements, &achievements_mode).await
+        {
+            warn!("Failed to set achievements in gameplay database {:?}", err);
+        }
+    }
+
     let mut header = Header::new();
     header.set_type(
         MessageType::GET_USER_ACHIEVEMENTS_RESPONSE
@@ -257,6 +282,30 @@ async fn get_user_achievements(
     );
     header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());
     let mut content = GetUserAchievementsResponse::new();
+    content.set_achievements_mode(achievements_mode);
+    content.set_language("en-US".to_string());
+
+    for achievement in achievements {
+        let mut proto_achievement = UserAchievement::new();
+        proto_achievement.set_achievement_id(achievement.achievement_id().parse().unwrap());
+        proto_achievement.set_key(achievement.achievement_key().to_owned());
+        proto_achievement.set_name(achievement.name().to_owned());
+        proto_achievement.set_description(achievement.description().to_owned());
+        proto_achievement.set_visible_while_locked(achievement.visible().to_owned());
+        proto_achievement.set_image_url_locked(achievement.image_url_locked().to_owned());
+        proto_achievement.set_image_url_unlocked(achievement.image_url_unlocked().to_owned());
+        proto_achievement.set_rarity(achievement.rarity().to_owned());
+        proto_achievement
+            .set_rarity_level_description(achievement.rarity_level_description().to_owned());
+        proto_achievement.set_rarity_level_slug(achievement.rarity_level_slug().to_owned());
+
+        if let Some(date) = achievement.date_unlocked() {
+            let parsed_date: chrono::DateTime<Utc> = date.parse().unwrap();
+            let timestamp = parsed_date.timestamp() as u32;
+            proto_achievement.set_unlock_time(timestamp);
+        }
+        content.user_achievements.push(proto_achievement);
+    }
 
     let content_buffer = content.write_to_bytes().unwrap();
     header.set_size(content_buffer.len().try_into().unwrap());

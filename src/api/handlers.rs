@@ -33,7 +33,7 @@ pub async fn entry_point(
         let _ = socket.shutdown().await;
         return;
     }
-    let mut context = HandlerContext::new(socket, shutdown_token.clone(), token_store);
+    let mut context = HandlerContext::new(socket, token_store);
     debug!("Awaiting messages");
     loop {
         tokio::select! {
@@ -105,6 +105,7 @@ pub async fn handle_message(
             ))
         }
     }?;
+    debug!("Responding with {} {}", payload.header.sort(), payload.header.type_());
     // Prepare response
     if payload.header.has_oseq() {
         result

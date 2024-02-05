@@ -1,15 +1,13 @@
-use derive_getters::Getters;
 use crate::constants::TokenStorage;
 use crate::db;
+use derive_getters::Getters;
 use sqlx::SqlitePool;
 use tokio::net::TcpStream;
-use tokio_util::sync::CancellationToken;
 
 #[derive(Getters)]
 pub struct HandlerContext {
     is_online: bool,
     socket: TcpStream,
-    shutdown_token: CancellationToken,
     token_store: TokenStorage,
     db_connected: bool,
     #[getter(skip)]
@@ -22,13 +20,11 @@ pub struct HandlerContext {
 impl HandlerContext {
     pub fn new(
         socket: TcpStream,
-        shutdown_token: CancellationToken,
         token_store: TokenStorage,
     ) -> Self {
         Self {
             is_online: false,
             socket,
-            shutdown_token,
             token_store,
             db_connected: false,
             db_connection: None,
@@ -69,6 +65,11 @@ impl HandlerContext {
         sqlx::query(db::gameplay::SETUP_QUERY)
             .execute(&mut *connection)
             .await?;
+
+        // This may already exist, we don't care
+        let _ = sqlx::query("INSERT INTO database_info VALUES ('language', 'en-US')")
+            .execute(&mut *connection)
+            .await; // TODO: Handle languages
 
         self.db_connected = true;
         Ok(())
