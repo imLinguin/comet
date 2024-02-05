@@ -1,5 +1,5 @@
 mod communication_service;
-mod context;
+pub mod context;
 pub mod error;
 pub mod utils;
 mod webbroker;
@@ -8,7 +8,7 @@ use crate::constants::TokenStorage;
 use error::*;
 use std::sync::Arc;
 
-use crate::api::handlers::context::HandlerContext;
+use context::HandlerContext;
 use crate::api::structs::UserInfo;
 use log::{debug, error, info, warn};
 use protobuf::Message;
@@ -45,6 +45,10 @@ pub async fn entry_point(
                                 MessageHandlingErrorKind::NotImplemented => {
                                     warn!("Request type not implemented")
                                 },
+                                MessageHandlingErrorKind::Unauthorized => {
+                                    let _ = context.socket_mut().shutdown().await;
+                                    return
+                                }
                                 _ => {
                                     error!("There was an error when handling the message {:?}", err);
                                 }

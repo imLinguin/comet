@@ -1,4 +1,4 @@
-use log::warn;
+use log::{debug, warn};
 use protobuf::{Enum, Message};
 
 use super::error::*;
@@ -9,6 +9,7 @@ use crate::proto::galaxy_protocols_webbroker_service::{
 use crate::proto::gog_protocols_pb;
 
 pub async fn entry_point(payload: &ProtoPayload) -> Result<ProtoPayload, MessageHandlingError> {
+    debug!("webbroker entry point called");
     let header = &payload.header;
 
     let message_type: i32 = header.type_().try_into().unwrap();
@@ -49,6 +50,7 @@ async fn subscribe_topic_request(
     new_data.set_topic(topic);
 
     let buffer = new_data.write_to_bytes().unwrap();
+    header.set_size(buffer.len().try_into().unwrap());
     Ok(ProtoPayload {
         header,
         payload: buffer,

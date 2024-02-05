@@ -1,14 +1,18 @@
+use derive_getters::Getters;
 use crate::constants::TokenStorage;
 use crate::db;
 use sqlx::SqlitePool;
 use tokio::net::TcpStream;
 use tokio_util::sync::CancellationToken;
 
+#[derive(Getters)]
 pub struct HandlerContext {
+    is_online: bool,
     socket: TcpStream,
     shutdown_token: CancellationToken,
     token_store: TokenStorage,
     db_connected: bool,
+    #[getter(skip)]
     db_connection: Option<SqlitePool>,
     client_identified: bool,
     client_id: Option<String>,
@@ -22,6 +26,7 @@ impl HandlerContext {
         token_store: TokenStorage,
     ) -> Self {
         Self {
+            is_online: false,
             socket,
             shutdown_token,
             token_store,
@@ -33,26 +38,22 @@ impl HandlerContext {
         }
     }
 
-    pub fn socket(&self) -> &TcpStream {
-        &self.socket
-    }
-
     pub fn socket_mut(&mut self) -> &mut TcpStream {
         &mut self.socket
-    }
-
-    pub fn token_store(&self) -> &TokenStorage {
-        &self.token_store
-    }
-
-    pub fn shutdown_token(&self) -> &CancellationToken {
-        &self.shutdown_token
     }
 
     pub fn identify_client(&mut self, client_id: &str, client_secret: &str) {
         self.client_identified = true;
         self.client_id = Some(client_id.to_string());
         self.client_secret = Some(client_secret.to_string());
+    }
+
+    pub fn set_online(&mut self) {
+        self.is_online = true
+    }
+
+    pub fn set_offline(&mut self) {
+        self.is_online = false
     }
 
     pub async fn setup_database(
@@ -71,5 +72,10 @@ impl HandlerContext {
 
         self.db_connected = true;
         Ok(())
+    }
+
+    pub fn db_connection(&self) -> SqlitePool {
+        let connection = self.db_connection.clone();
+        connection.unwrap()
     }
 }

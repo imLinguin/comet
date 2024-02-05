@@ -1,7 +1,10 @@
 #[derive(Debug)]
 pub enum MessageHandlingErrorKind {
     NotImplemented,
+    Unauthorized,
+    DB(sqlx::Error),
     IO(tokio::io::Error),
+    Network(reqwest::Error),
     Proto(protobuf::Error),
 }
 
