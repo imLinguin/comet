@@ -11,23 +11,31 @@ use tokio_util::sync::CancellationToken;
 use crate::proto::common_utils::ProtoPayload;
 use crate::proto::gog_protocols_pb::response::Status;
 use crate::proto::{
+    galaxy_common_protocols_connection,
     galaxy_protocols_webbroker_service::{
         AuthRequest, MessageSort, MessageType, SubscribeTopicRequest, SubscribeTopicResponse,
     },
     gog_protocols_pb::Header,
 };
 
+#[derive(Clone)]
+pub enum PusherEvent {
+    Online,
+    Offline,
+    Topic(Vec<u8>),
+}
+
 pub struct NotificationPusherClient {
     pusher_connection: WebSocketStream<MaybeTlsStream<TcpStream>>,
     access_token: String,
-    topic_sender: Sender<Vec<u8>>,
+    topic_sender: Sender<PusherEvent>,
     shutdown_token: CancellationToken,
 }
 
 impl NotificationPusherClient {
     pub async fn new(
         access_token: &String,
-        topic_sender: Sender<Vec<u8>>,
+        topic_sender: Sender<PusherEvent>,
         shutdown_token: CancellationToken,
     ) -> NotificationPusherClient {
         debug!("Notification pusher init");
@@ -102,6 +110,7 @@ impl NotificationPusherClient {
 
     pub async fn handle_loop(&mut self) {
         loop {
+            let mut pending_ping = false;
             loop {
                 let message = tokio::select! {
                     msg = self.pusher_connection.next() => {
@@ -111,8 +120,36 @@ impl NotificationPusherClient {
                         }
                         msg.unwrap()
                     }
-                    _ = time::sleep(time::Duration::from_secs(30)) => {
-                        // TODO: Implement pings to make sure connection stays alive
+                    _ = time::sleep(time::Duration::from_secs(60)) => {
+                        if pending_ping {
+                            // Send offline status to contexts
+                            if let Err(err) = self.topic_sender.send(PusherEvent::Offline) {
+                                warn!("Failed to send offline event to contexts {}", err.to_string());
+                            }
+                            continue
+                        }
+                        // Ping the service to see if we are still online
+                        let mut header = Header::new();
+                        header.set_type(galaxy_common_protocols_connection::MessageType::PING.value().try_into().unwrap());
+                        header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());
+                        let mut content = galaxy_common_protocols_connection::Ping::new();
+                        content.set_ping_time(chrono::Utc::now().timestamp().try_into().unwrap());
+                        let content_buffer = content.write_to_bytes().unwrap();
+                        header.set_size(content_buffer.len().try_into().unwrap());
+                        let header_buffer = header.write_to_bytes().unwrap();
+                        let header_size: u16 = header_buffer.len().try_into().unwrap();
+
+                        let mut message: Vec<u8> = Vec::new();
+                        message.extend(header_size.to_be_bytes().to_vec());
+                        message.extend(header_buffer);
+                        message.extend(content_buffer);
+
+                        let ws_message = tungstenite::Message::Ping(message);
+                        if let Err(err) = self.pusher_connection.send(ws_message).await {
+                            warn!("Pusher ping failed {:?}", err);
+                            break;
+                        }
+                        pending_ping = true;
                         continue
                     }
                     _ = self.shutdown_token.cancelled() => {
@@ -223,7 +260,7 @@ impl NotificationPusherClient {
                         }
                     } else if msg_type == MessageType::MESSAGE_FROM_TOPIC.value() {
                         info!("Recieved message from topic");
-                        if let Err(error) = self.topic_sender.send(msg_data) {
+                        if let Err(error) = self.topic_sender.send(PusherEvent::Topic(msg_data)) {
                             error!(
                                 "There was an error when forwarding topic message: {}",
                                 error
@@ -232,10 +269,19 @@ impl NotificationPusherClient {
                     } else {
                         warn!("Unhandled message type: {}", msg_type);
                     }
+                } else if message.is_pong() {
+                    debug!("Pong received");
+                    pending_ping = false;
+                    if let Err(err) = self.topic_sender.send(PusherEvent::Online) {
+                        warn!(
+                            "Failed to notify handlers about going online {}",
+                            err.to_string()
+                        );
+                    }
                 }
             }
             if !self.shutdown_token.is_cancelled() {
-                tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                tokio::time::sleep(time::Duration::from_secs(5)).await;
                 let mut retries = 5;
                 let connection = loop {
                     if self.shutdown_token.is_cancelled() {

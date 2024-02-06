@@ -1,13 +1,13 @@
 use crate::api::gog;
 use crate::api::gog::stats::FieldValue;
 use crate::api::handlers::context::HandlerContext;
-use crate::api::structs::UserInfo;
+use crate::api::structs::{DataSource, UserInfo};
 use crate::{constants, db};
-use log::{debug, info, warn};
+use chrono::{Local, TimeZone, Utc};
+use log::{debug, error, info, warn};
 use protobuf::{Enum, Message};
 use reqwest::{Client, StatusCode};
 use std::sync::Arc;
-use chrono::Utc;
 
 use crate::proto::common_utils::ProtoPayload;
 
@@ -38,6 +38,8 @@ pub async fn entry_point(
         get_user_stats(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_USER_ACHIEVEMENTS_REQUEST.value() {
         get_user_achievements(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::UNLOCK_USER_ACHIEVEMENT_REQUEST.value() {
+        unlock_user_achievement(payload, context, user_info, reqwest_client).await
     } else {
         warn!(
             "Unhandled communication service message type {}",
@@ -87,13 +89,15 @@ async fn auth_info_request(
         .setup_database(client_id, &user_info.galaxy_user_id)
         .await
     {
-        warn!("There was an error setting up the gameplay database, some functionality may be limited {:#?}", err);
+        panic!(
+            "There was an error setting up the gameplay database {:#?}",
+            err
+        );
     }
 
     // Use new refresh_token to prepare response
     let mut header = Header::new();
     header.set_type(MessageType::AUTH_INFO_RESPONSE.value().try_into().unwrap());
-    header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());
 
     let mut content = AuthInfoResponse::new();
     match new_token {
@@ -105,6 +109,7 @@ async fn auth_info_request(
             context.set_online();
         }
         Err(err) => {
+            warn!("There was an error getting the access token");
             if let Some(status) = err.status() {
                 // user doesn't own the game
                 if StatusCode::FORBIDDEN == status {
@@ -112,6 +117,12 @@ async fn auth_info_request(
                         MessageHandlingErrorKind::Unauthorized,
                     ));
                 }
+            }
+            // Check if we can continue offline
+            let ach = db::gameplay::has_achievements(context).await;
+            let stat = db::gameplay::has_statistics(context).await;
+            if !stat && !ach {
+                panic!("No statistics or achievements locally, can't continue");
             }
         }
     };
@@ -131,24 +142,28 @@ async fn auth_info_request(
 
 async fn get_user_stats(
     payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
-    let has_statistics = db::gameplay::has_statistics(context).await;
+    let new_stats =
+        gog::stats::fetch_stats(context, &user_info.galaxy_user_id, reqwest_client).await;
+    let db_stats = db::gameplay::get_statistics(context, false).await;
 
-    debug!("Statistics in local database: {}", has_statistics);
-    let stats: Vec<gog::stats::Stat> = match has_statistics {
-        false => gog::stats::fetch_stats(context, &user_info.galaxy_user_id, reqwest_client)
-            .await
-            .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?,
+    let mut stats_source = DataSource::Online;
 
-        true => db::gameplay::get_statistics(context)
-            .await
-            .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?,
+    let stats = match new_stats {
+        Ok(stats) => stats,
+        Err(_) => match db_stats {
+            Ok(stats) => {
+                stats_source = DataSource::Local;
+                stats
+            }
+            Err(_) => panic!("Unable to retrieve stats"),
+        },
     };
 
-    if !has_statistics {
+    if stats_source == DataSource::Online {
         if let Err(err) = db::gameplay::set_statistics(context, &stats).await {
             warn!("Failed to set statistics in gameplay database {:?}", err);
         }
@@ -162,7 +177,6 @@ async fn get_user_stats(
             .try_into()
             .unwrap(),
     );
-    header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());
 
     let mut content = GetUserStatsResponse::new();
 
@@ -246,27 +260,28 @@ async fn get_user_stats(
 
 async fn get_user_achievements(
     proto_payload: &ProtoPayload,
-    mut context: &mut HandlerContext,
+    context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
-    let has_achievements = db::gameplay::has_achievements(&mut context).await;
+    let online_achievements =
+        gog::achievements::fetch_achievements(&context, &user_info.galaxy_user_id, reqwest_client)
+            .await;
+    let local_achievements = db::gameplay::get_achievements(&context, false).await;
 
-    debug!("Achievements in local database: {}", has_achievements);
-    let (achievements, achievements_mode) = match has_achievements {
-        false => gog::achievements::fetch_achievements(
-            &context,
-            &user_info.galaxy_user_id,
-            reqwest_client,
-        )
-        .await
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?,
-        true => db::gameplay::get_achievements(&mut context)
-            .await
-            .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?,
+    let mut achievements_source = DataSource::Online;
+    let (achievements, achievements_mode) = match online_achievements {
+        Ok(achievements) => achievements,
+        Err(_) => match local_achievements {
+            Ok(achievements) => {
+                achievements_source = DataSource::Local;
+                achievements
+            }
+            Err(_) => panic!("Unable to load achievements"),
+        },
     };
 
-    if !has_achievements {
+    if achievements_source == DataSource::Online {
         if let Err(err) =
             db::gameplay::set_achievements(context, &achievements, &achievements_mode).await
         {
@@ -281,7 +296,6 @@ async fn get_user_achievements(
             .try_into()
             .unwrap(),
     );
-    header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());
     let mut content = GetUserAchievementsResponse::new();
     content.set_achievements_mode(achievements_mode);
     content.set_language("en-US".to_string());
@@ -314,5 +328,47 @@ async fn get_user_achievements(
     Ok(ProtoPayload {
         header,
         payload: content_buffer,
+    })
+}
+
+async fn unlock_user_achievement(
+    proto_payload: &ProtoPayload,
+    context: &mut HandlerContext,
+    user_info: Arc<UserInfo>,
+    reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    let request_data = UnlockUserAchievementRequest::parse_from_bytes(&proto_payload.payload);
+    let request_data = request_data
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+
+    let ach_id: i64 = request_data.achievement_id().try_into().unwrap();
+    let timestamp = request_data.time();
+    let dt = Local.timestamp_opt(timestamp.into(), 0).unwrap();
+    let timestamp_string = Some(dt.to_utc().to_rfc3339());
+
+    // FIXME: Handle errors gracefully
+    // Check with database first
+    let achievement = db::gameplay::get_achievement(context, ach_id)
+        .await
+        .expect("Failed to read database");
+
+    if achievement.date_unlocked().is_none() {
+        db::gameplay::set_achievement(context, ach_id, timestamp_string.clone())
+            .await
+            .expect("Failed to write achievement to database");
+        context.set_updated_achievements(true);
+    }
+
+    let mut header = Header::new();
+    header.set_type(
+        MessageType::UNLOCK_USER_ACHIEVEMENT_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+
+    Ok(ProtoPayload {
+        header,
+        payload: Vec::new(),
     })
 }

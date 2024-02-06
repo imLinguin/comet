@@ -15,6 +15,8 @@ pub struct HandlerContext {
     client_identified: bool,
     client_id: Option<String>,
     client_secret: Option<String>,
+    updated_achievements: bool,
+    updated_stats: bool
 }
 
 impl HandlerContext {
@@ -31,6 +33,8 @@ impl HandlerContext {
             client_identified: false,
             client_id: None,
             client_secret: None,
+            updated_achievements: false,
+            updated_stats: false
         }
     }
 
@@ -50,6 +54,13 @@ impl HandlerContext {
 
     pub fn set_offline(&mut self) {
         self.is_online = false
+    }
+
+    pub fn set_updated_achievements(&mut self, value: bool) {
+        self.updated_achievements = value
+    }
+    pub fn set_updated_stats(&mut self, value: bool) {
+        self.updated_stats = value
     }
 
     pub async fn setup_database(

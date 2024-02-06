@@ -3,6 +3,7 @@ use crate::api::gog::stats::{FieldValue, Stat};
 use crate::api::handlers::context::HandlerContext;
 use crate::paths;
 use log::info;
+use sqlx::sqlite::SqliteRow;
 use sqlx::{Acquire, Error, Row, SqlitePool};
 
 pub const SETUP_QUERY: &str = r#"
@@ -35,7 +36,7 @@ pub async fn setup_connection(client_id: &str, user_id: &str) -> Result<SqlitePo
     SqlitePool::connect(&url).await
 }
 
-pub async fn has_statistics(context: &mut HandlerContext) -> bool {
+pub async fn has_statistics(context: &HandlerContext) -> bool {
     let database = context.db_connection();
     let mut connection = database.acquire().await;
     if let Err(_) = connection {
@@ -59,7 +60,10 @@ pub async fn has_statistics(context: &mut HandlerContext) -> bool {
     }
 }
 
-pub async fn get_statistics(context: &mut HandlerContext) -> Result<Vec<Stat>, Error> {
+pub async fn get_statistics(
+    context: &HandlerContext,
+    only_changed: bool,
+) -> Result<Vec<Stat>, Error> {
     let database = context.db_connection();
     let mut connection = database.acquire().await?;
     let mut stats: Vec<Stat> = Vec::new();
@@ -68,8 +72,10 @@ pub async fn get_statistics(context: &mut HandlerContext) -> Result<Vec<Stat>, E
         i.value, i.default_value, i.min_value, i.max_value, i.max_change
         FROM int_statistic AS i
         JOIN statistic AS s
-        ON s.id = i.id"#,
+        ON s.id = i.id
+        WHERE ($1=1 AND s.changed=1) OR ($1=0 AND 1)"#,
     )
+    .bind(only_changed as u8)
     .fetch_all(&mut *connection)
     .await?;
     let float_stats = sqlx::query(
@@ -77,8 +83,10 @@ pub async fn get_statistics(context: &mut HandlerContext) -> Result<Vec<Stat>, E
         f.value, f.default_value, f.min_value, f.max_value, f.max_change, f.window
         FROM float_statistic AS f
         JOIN statistic AS s
-        ON s.id = f.id"#,
+        ON s.id = f.id
+        WHERE ($1=1 AND s.changed=1) OR ($1=0 AND 1)"#,
     )
+    .bind(only_changed as u8)
     .fetch_all(&mut *connection)
     .await?;
 
@@ -127,7 +135,7 @@ pub async fn get_statistics(context: &mut HandlerContext) -> Result<Vec<Stat>, E
     Ok(stats)
 }
 
-pub async fn set_statistics(context: &mut HandlerContext, stats: &Vec<Stat>) -> Result<(), Error> {
+pub async fn set_statistics(context: &HandlerContext, stats: &Vec<Stat>) -> Result<(), Error> {
     let database = context.db_connection();
     let mut connection = database.acquire().await?;
     let mut transaction = connection.begin().await?;
@@ -210,7 +218,7 @@ pub async fn set_statistics(context: &mut HandlerContext, stats: &Vec<Stat>) -> 
     Ok(())
 }
 
-pub async fn has_achievements(context: &mut HandlerContext) -> bool {
+pub async fn has_achievements(context: &HandlerContext) -> bool {
     let database = context.db_connection();
     let mut connection = database.acquire().await;
     if let Err(_) = connection {
@@ -234,8 +242,27 @@ pub async fn has_achievements(context: &mut HandlerContext) -> bool {
     }
 }
 
+fn achievement_from_database_row(row: SqliteRow) -> Achievement {
+    let visible: u8 = row.try_get("visible_while_locked").unwrap();
+    let achievement_id: i64 = row.try_get("id").unwrap();
+    Achievement::new(
+        achievement_id.to_string(),
+        row.try_get("key").unwrap(),
+        row.try_get("name").unwrap(),
+        row.try_get("description").unwrap(),
+        row.try_get("image_url_locked").unwrap(),
+        row.try_get("image_url_unlocked").unwrap(),
+        visible == 1,
+        row.try_get("unlock_time").unwrap(),
+        row.try_get("rarity").unwrap(),
+        row.try_get("rarity_level_description").unwrap(),
+        row.try_get("rarity_level_slug").unwrap(),
+    )
+}
+
 pub async fn get_achievements(
-    context: &mut HandlerContext,
+    context: &HandlerContext,
+    only_changed: bool,
 ) -> Result<(Vec<Achievement>, String), Error> {
     let database = context.db_connection();
     let mut connection = database.acquire().await?;
@@ -250,27 +277,14 @@ pub async fn get_achievements(
         r#"SELECT id, key, name, description, visible_while_locked,
         unlock_time, image_url_locked, image_url_unlocked, rarity,
         rarity_level_description, rarity_level_slug
-        FROM achievement"#,
+        FROM achievement WHERE ($1=1 AND changed=1) OR ($1=0 AND 1)"#,
     )
+    .bind(only_changed as u8)
     .fetch_all(&mut *connection)
     .await?;
 
     for row in db_achievements {
-        let visible: u8 = row.try_get("visible_while_locked").unwrap();
-        let achievement_id: i64 = row.try_get("id").unwrap();
-        let new_achievement = Achievement::new(
-            achievement_id.to_string(),
-            row.try_get("key").unwrap(),
-            row.try_get("name").unwrap(),
-            row.try_get("description").unwrap(),
-            row.try_get("image_url_locked").unwrap(),
-            row.try_get("image_url_unlocked").unwrap(),
-            visible == 1,
-            row.try_get("unlock_time").unwrap(),
-            row.try_get("rarity").unwrap(),
-            row.try_get("rarity_level_description").unwrap(),
-            row.try_get("rarity_level_slug").unwrap(),
-        );
+        let new_achievement = achievement_from_database_row(row);
         achievements.push(new_achievement);
     }
 
@@ -278,7 +292,7 @@ pub async fn get_achievements(
 }
 
 pub async fn set_achievements(
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     achievements: &Vec<Achievement>,
     mode: &str,
 ) -> Result<(), Error> {
@@ -322,9 +336,11 @@ pub async fn set_achievements(
             .execute(&mut *transaction)
             .await?;
     } else {
-        sqlx::query("UPDATE database_info SET value='1' WHERE key='achievements_retrieved'")
-            .execute(&mut *transaction)
-            .await?;
+        sqlx::query(
+            "UPD.to_string()ATE database_info SET value='1' WHERE key='achievements_retrieved'",
+        )
+        .execute(&mut *transaction)
+        .await?;
         sqlx::query("UPDATE database_info SET value='$1' WHERE key='achievements_mode'")
             .bind(mode)
             .execute(&mut *transaction)
@@ -332,5 +348,42 @@ pub async fn set_achievements(
     }
 
     transaction.commit().await?;
+    Ok(())
+}
+
+pub async fn get_achievement(
+    context: &HandlerContext,
+    achievement_id: i64,
+) -> Result<Achievement, Error> {
+    let database = context.db_connection();
+    let mut connection = database.acquire().await?;
+
+    let result = sqlx::query(
+        r#"SELECT id, key, name, description, visible_while_locked,
+        unlock_time, image_url_locked, image_url_unlocked, rarity,
+        rarity_level_description, rarity_level_slug
+        FROM achievement WHERE id=$1"#,
+    )
+    .bind(achievement_id)
+    .fetch_one(&mut *connection)
+    .await?;
+
+    Ok(achievement_from_database_row(result))
+}
+
+pub async fn set_achievement(
+    context: &HandlerContext,
+    achievement_id: i64,
+    date_unlocked: Option<String>,
+) -> Result<(), Error> {
+    let database = context.db_connection();
+    let mut connection = database.acquire().await?;
+
+    sqlx::query("UPDATE achievement SET changed=1, unlock_time=$1 WHERE id=$2")
+        .bind(date_unlocked)
+        .bind(achievement_id)
+        .execute(&mut *connection)
+        .await?;
+
     Ok(())
 }

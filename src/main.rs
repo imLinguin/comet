@@ -17,6 +17,7 @@ mod proto;
 
 use crate::api::structs::{Token, UserInfo};
 use api::notification_pusher::NotificationPusherClient;
+use crate::api::notification_pusher::PusherEvent;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
@@ -80,7 +81,7 @@ async fn main() {
         .await
         .expect("Failed to bind to port 9977");
 
-    let (topic_sender, _) = tokio::sync::broadcast::channel::<Vec<u8>>(20);
+    let (topic_sender, _) = tokio::sync::broadcast::channel::<PusherEvent>(20);
     let shutdown_token = tokio_util::sync::CancellationToken::new();
     let pusher_shutdown = shutdown_token.clone(); // Handler for notifications-pusher
     let cloned_shutdown = shutdown_token.clone(); // Handler to share between main thread and sockets
