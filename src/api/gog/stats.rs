@@ -1,7 +1,7 @@
 use crate::api::handlers::context::HandlerContext;
 use derive_getters::Getters;
 use reqwest::{Client, Error};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug)]
 #[serde(tag = "type")]
@@ -88,4 +88,58 @@ pub async fn fetch_stats(
     let stats_data = response.json::<StatsResponse>().await?;
 
     Ok(stats_data.items)
+}
+
+#[derive(Serialize)]
+#[serde(untagged)]
+enum UpdateStatRequestValueType {
+    Float(f32),
+    Int(i32),
+}
+
+#[derive(Serialize)]
+struct UpdateStatRequest {
+    value: UpdateStatRequestValueType,
+}
+
+impl UpdateStatRequest {
+    pub fn new(value: UpdateStatRequestValueType) -> Self {
+        Self { value }
+    }
+}
+
+pub async fn update_stat(
+    context: &HandlerContext,
+    reqwest_client: &Client,
+    user_id: &str,
+    stat: &Stat,
+) -> Result<(), Error> {
+    let lock = context.token_store().lock().await;
+    let client_id = context.client_id().clone().unwrap();
+    let token = lock.get(&client_id).unwrap().clone();
+    drop(lock);
+
+    let url = format!(
+        "https://gameplay.gog.com/clients/{}/users/{}/stats/{}",
+        &client_id,
+        user_id,
+        stat.stat_id()
+    );
+    let value_type = match stat.values {
+        FieldValue::FLOAT { value, .. } | FieldValue::AVGRATE { value, .. } => {
+            UpdateStatRequestValueType::Float(value)
+        }
+        FieldValue::INT { value, .. } => UpdateStatRequestValueType::Int(value),
+    };
+    let payload = UpdateStatRequest::new(value_type);
+    let auth_header = String::from("Bearer ") + &token.access_token;
+    let response = reqwest_client
+        .post(url)
+        .json(&payload)
+        .header("Authorization", auth_header)
+        .send()
+        .await?;
+
+    response.error_for_status()?;
+    Ok(())
 }

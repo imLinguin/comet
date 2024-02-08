@@ -15,9 +15,9 @@ mod heroic;
 mod paths;
 mod proto;
 
+use crate::api::notification_pusher::PusherEvent;
 use crate::api::structs::{Token, UserInfo};
 use api::notification_pusher::NotificationPusherClient;
-use crate::api::notification_pusher::PusherEvent;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about)]

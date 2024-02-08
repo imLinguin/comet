@@ -218,6 +218,35 @@ pub async fn set_statistics(context: &HandlerContext, stats: &Vec<Stat>) -> Resu
     Ok(())
 }
 
+pub async fn set_stat_float(
+    context: &HandlerContext,
+    stat_id: i64,
+    value: f32,
+) -> Result<(), Error> {
+    let database = context.db_connection();
+    let mut connection = database.acquire().await?;
+
+    sqlx::query("UPDATE float_statistic SET value=$1 WHERE id=$2; UPDATE statistic SET changed=1 WHERE id=$2;")
+        .bind(value)
+        .bind(stat_id)
+        .execute(&mut *connection)
+        .await?;
+
+    Ok(())
+}
+pub async fn set_stat_int(context: &HandlerContext, stat_id: i64, value: i32) -> Result<(), Error> {
+    let database = context.db_connection();
+    let mut connection = database.acquire().await?;
+
+    sqlx::query("UPDATE int_statistic SET value=$1 WHERE id=$2; UPDATE statistic SET changed=1 WHERE id=$2;")
+        .bind(value)
+        .bind(stat_id)
+        .execute(&mut *connection)
+        .await?;
+
+    Ok(())
+}
+
 pub async fn has_achievements(context: &HandlerContext) -> bool {
     let database = context.db_connection();
     let mut connection = database.acquire().await;

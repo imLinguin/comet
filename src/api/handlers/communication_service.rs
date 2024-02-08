@@ -2,8 +2,10 @@ use crate::api::gog;
 use crate::api::gog::stats::FieldValue;
 use crate::api::handlers::context::HandlerContext;
 use crate::api::structs::{DataSource, UserInfo};
+use crate::db::gameplay::{set_stat_float, set_stat_int};
 use crate::{constants, db};
 use chrono::{Local, TimeZone, Utc};
+use futures_util::TryFutureExt;
 use log::{debug, error, info, warn};
 use protobuf::{Enum, Message};
 use reqwest::{Client, StatusCode};
@@ -16,7 +18,7 @@ use crate::proto::galaxy_protocols_communication_service::get_user_achievements_
 use crate::proto::galaxy_protocols_communication_service::EnvironmentType::ENVIRONMENT_PRODUCTION;
 use crate::proto::galaxy_protocols_communication_service::Region::REGION_WORLD_WIDE;
 use crate::proto::galaxy_protocols_communication_service::ValueType::{
-    VALUE_TYPE_AVGRATE, VALUE_TYPE_FLOAT, VALUE_TYPE_INT,
+    VALUE_TYPE_AVGRATE, VALUE_TYPE_FLOAT, VALUE_TYPE_INT, VALUE_TYPE_UNDEFINED,
 };
 use crate::proto::galaxy_protocols_communication_service::*;
 use crate::proto::gog_protocols_pb::Header;
@@ -36,6 +38,8 @@ pub async fn entry_point(
         auth_info_request(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_USER_STATS_REQUEST.value() {
         get_user_stats(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::UPDATE_USER_STAT_REQUEST.value() {
+        update_user_stat(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_USER_ACHIEVEMENTS_REQUEST.value() {
         get_user_achievements(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::UNLOCK_USER_ACHIEVEMENT_REQUEST.value() {
@@ -255,6 +259,53 @@ async fn get_user_stats(
     Ok(ProtoPayload {
         header,
         payload: content_buffer,
+    })
+}
+
+async fn update_user_stat(
+    proto_payload: &ProtoPayload,
+    mut context: &mut HandlerContext,
+    user_info: Arc<UserInfo>,
+    reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    let request_data = UpdateUserStatRequest::parse_from_bytes(&proto_payload.payload);
+    let request_data = request_data
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+
+    let stat_id: u64 = request_data.stat_id();
+    let stat_id: i64 = stat_id.try_into().unwrap();
+    let value_type = request_data.value_type();
+    match value_type {
+        VALUE_TYPE_FLOAT | VALUE_TYPE_AVGRATE => {
+            let value = request_data.float_value();
+            set_stat_float(context, stat_id, value)
+                .await
+                .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+        }
+        VALUE_TYPE_INT => {
+            let value = request_data.int_value();
+            set_stat_int(context, stat_id, value)
+                .await
+                .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+        }
+        VALUE_TYPE_UNDEFINED => {
+            warn!("Undefined value type, ignoring");
+        }
+    };
+
+    context.set_updated_stats(true);
+
+    let mut header = Header::new();
+    header.set_type(
+        MessageType::UPDATE_USER_STAT_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+
+    Ok(ProtoPayload {
+        header,
+        payload: Vec::new(),
     })
 }
 

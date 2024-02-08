@@ -16,14 +16,11 @@ pub struct HandlerContext {
     client_id: Option<String>,
     client_secret: Option<String>,
     updated_achievements: bool,
-    updated_stats: bool
+    updated_stats: bool,
 }
 
 impl HandlerContext {
-    pub fn new(
-        socket: TcpStream,
-        token_store: TokenStorage,
-    ) -> Self {
+    pub fn new(socket: TcpStream, token_store: TokenStorage) -> Self {
         Self {
             is_online: false,
             socket,
@@ -34,7 +31,7 @@ impl HandlerContext {
             client_id: None,
             client_secret: None,
             updated_achievements: false,
-            updated_stats: false
+            updated_stats: false,
         }
     }
 

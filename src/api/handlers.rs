@@ -238,16 +238,53 @@ async fn sync_routine(
                     }
                 }
                 transaction.commit().await.expect("Failed to save changes");
+                context.set_updated_achievements(false);
             }
             Err(err) => error!("Failed to read local database {:?}", err),
         }
-        context.set_updated_achievements(false);
         info!("Uploaded");
     }
 
     if *context.updated_stats() {
         // Sync stats
         info!("Uploading new stats");
-        // TODO: Implement stats update
+        let changed_statistics = db::gameplay::get_statistics(&context, true).await;
+        match changed_statistics {
+            Ok(stats) => {
+                let db = context.db_connection();
+                let mut connection = db
+                    .acquire()
+                    .await
+                    .expect("Failed to get database connection");
+                let mut transaction = connection
+                    .begin()
+                    .await
+                    .expect("Failed to start transaction");
+
+                for stat in stats {
+                    debug!("Setting stat {}", stat.stat_id());
+                    let result = gog::stats::update_stat(
+                        &context,
+                        &reqwest_client,
+                        &user_info.galaxy_user_id,
+                        &stat,
+                    )
+                    .await;
+
+                    if let Ok(_) = result {
+                        // Update local entry with changed to false
+                        let a_id: i64 = stat.stat_id().parse().unwrap();
+                        sqlx::query("UPDATE statistic SET changed=0 WHERE id=$1")
+                            .bind(a_id)
+                            .execute(&mut *transaction)
+                            .await
+                            .expect("Failed to update changed status");
+                    }
+                }
+                transaction.commit().await.expect("Failed to save changes");
+                context.set_updated_stats(false);
+            }
+            Err(err) => error!("Failed to read local database {:?}", err),
+        }
     }
 }

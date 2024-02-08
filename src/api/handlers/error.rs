@@ -3,6 +3,7 @@ pub enum MessageHandlingErrorKind {
     NotImplemented,
     Unauthorized,
     IO(tokio::io::Error),
+    DB(sqlx::Error),
     Network(reqwest::Error),
     Proto(protobuf::Error),
 }

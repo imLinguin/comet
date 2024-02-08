@@ -106,7 +106,6 @@ pub async fn set_achievement(
     let client_id = context.client_id().clone().unwrap();
     let token = lock.get(&client_id).unwrap().clone();
     drop(lock);
-    let client_id = context.client_id().clone().unwrap();
     let url = format!(
         "https://gameplay.gog.com/clients/{}/users/{}/achievements/{}",
         &client_id, user_id, achievement_id
