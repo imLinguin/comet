@@ -366,7 +366,7 @@ pub async fn set_achievements(
             .await?;
     } else {
         sqlx::query(
-            "UPD.to_string()ATE database_info SET value='1' WHERE key='achievements_retrieved'",
+            "UPDATE database_info SET value='1' WHERE key='achievements_retrieved'",
         )
         .execute(&mut *transaction)
         .await?;

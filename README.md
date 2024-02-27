@@ -46,7 +46,11 @@ You need to obtain `access_token`, `refresh_token` and `user_id` either manually
 
 #### Via [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher)
 
-Log in to GOG within the launcher. Make sure to launch it before running Comet to ensure the credentials are refreshed.
+Log in to GOG within the launcher.
+
+#### Via [Lutris](https://github.com/lutris/lutris)
+
+Log in to Lutris's GOG source.
 
 #### Via [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl) (CLI)
 
@@ -69,13 +73,18 @@ https://login.gog.com/auth?client_id=46899977096215655&layout=galaxy&redirect_ur
 ### Running
 
 ```
-comet --token "<access_token>" --refresh_token "<refresh_token>" --user-id <user_id>
+comet --token "<access_token>" --refresh_token "<refresh_token>" --user-id <user_id> --username <USERNAME>
 ```
 
 Or if you are using Heroic/gogdl
 
 ```
-comet --from-heroic
+comet --from-heroic --username <USERNAME>
+```
+
+Or Lutris
+```
+comet --from-lutris --username <USERNAME>
 ```
 
 ## Contributing

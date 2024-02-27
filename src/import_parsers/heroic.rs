@@ -11,7 +11,7 @@ pub struct HeroicAuthConfig {
 }
 
 #[cfg(target_os = "linux")]
-fn get_heroic_config_path() -> Option<path::PathBuf> {
+fn get_config_path() -> Option<path::PathBuf> {
     let home_dir = env::var("HOME").unwrap();
     let home_dir = path::Path::new(&home_dir);
 
@@ -33,15 +33,18 @@ fn get_heroic_config_path() -> Option<path::PathBuf> {
 }
 
 #[cfg(target_os = "windows")]
-fn get_heroic_config_path() -> Option<path::PathBuf> {
+fn get_config_path() -> Option<path::PathBuf> {
     let appdata = env::var("APPDATA").unwrap();
     let appdata = path::Path::new(&appdata);
 
     Some(appdata.join("heroic/gog_store/auth.json"))
 }
 
-pub fn load_heroic_tokens() -> HeroicAuthConfig {
-    let config_path = get_heroic_config_path().expect("No heroic's auth.json found");
+// TODO: Support Mac
+
+pub fn load_tokens() -> HeroicAuthConfig {
+    let config_path = get_config_path().expect("No heroic's auth.json found");
+    log::debug!("Loading Heroic credentials from {:?}", config_path);
     let data = fs::read(config_path).expect("Failed to read heroic auth file");
     let data = data.as_slice();
 

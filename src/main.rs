@@ -11,9 +11,9 @@ extern crate lazy_static;
 mod api;
 mod constants;
 mod db;
-mod heroic;
 mod paths;
 mod proto;
+mod import_parsers;
 
 use crate::api::notification_pusher::PusherEvent;
 use crate::api::structs::{Token, UserInfo};
@@ -27,11 +27,14 @@ struct Args {
     #[arg(long, help = "Provide refresh token (for creating game sessions)")]
     refresh_token: Option<String>,
     #[arg(long, help = "Galaxy user id from /userData.json")]
-    user_id: String,
+    user_id: Option<String>,
     #[arg(long, help = "User name")]
     username: String,
-    #[arg(long = "from-heroic", help = "Load tokens from heroic")]
+    #[arg(long = "from-heroic", help = "Load tokens from heroic", group="import")]
     heroic: bool,
+    #[arg(long="from-lutris", help = "Load tokens from lutris", group="import")]
+    #[cfg(target_os = "linux")]
+    lutris: bool,
 }
 
 #[tokio::main]
@@ -40,32 +43,7 @@ async fn main() {
     let env = Env::new().filter_or("COMET_LOG", "info");
     Builder::from_env(env).target(Target::Stderr).init();
 
-    let access_token: String;
-    let refresh_token: String;
-
-    if args.heroic {
-        let config = heroic::load_heroic_tokens();
-        let config = config
-            .fields
-            .get(constants::GALAXY_CLIENT_ID)
-            .expect("No Galaxy credentials");
-
-        access_token = config
-            .get("access_token")
-            .expect("access_token not present in heroic config")
-            .as_str()
-            .unwrap()
-            .to_owned();
-        refresh_token = config
-            .get("refresh_token")
-            .expect("refresh_token not present in heroic config")
-            .as_str()
-            .unwrap()
-            .to_owned();
-    } else {
-        access_token = args.access_token.expect("Access token is required");
-        refresh_token = args.refresh_token.expect("Refresh token is required");
-    }
+    let (access_token, refresh_token, galaxy_user_id) = import_parsers::handle_credentials_import(&args);
 
     let reqwest_client = Client::builder()
         .user_agent(format!("Comet/{}", env!("CARGO_PKG_VERSION")))
@@ -74,7 +52,7 @@ async fn main() {
 
     let user_info = Arc::new(UserInfo {
         username: args.username,
-        galaxy_user_id: args.user_id,
+        galaxy_user_id,
     });
 
     let listener = TcpListener::bind("127.0.0.1:9977")

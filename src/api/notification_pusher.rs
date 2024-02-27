@@ -126,7 +126,7 @@ impl NotificationPusherClient {
                             if let Err(err) = self.topic_sender.send(PusherEvent::Offline) {
                                 warn!("Failed to send offline event to contexts {}", err.to_string());
                             }
-                            continue
+                            break 
                         }
                         // Ping the service to see if we are still online
                         let mut header = Header::new();
