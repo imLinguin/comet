@@ -96,3 +96,9 @@ special [thread](https://discord.com/channels/812703221789097985/107404884095874
 environment for tracing the Communication Service calls (involving Proxifier and custom mitmproxy)
 
 Reverse engineered protobuf definitions are available here: https://github.com/Yepoleb/gog_protocols
+
+## Sponsoring
+
+If you want to contribute financially you can do so via my [Ko-Fi](https://ko-fi.com/imlinguin).  
+You can also use any of the options to [support Heroic](https://heroicgameslauncher.com/donate)
+
