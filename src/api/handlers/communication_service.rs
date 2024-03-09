@@ -5,8 +5,7 @@ use crate::api::structs::{DataSource, UserInfo};
 use crate::db::gameplay::{set_stat_float, set_stat_int};
 use crate::{constants, db};
 use chrono::{Local, TimeZone, Utc};
-use futures_util::TryFutureExt;
-use log::{debug, error, info, warn};
+use log::{debug, info, warn};
 use protobuf::{Enum, Message};
 use reqwest::{Client, StatusCode};
 use std::sync::Arc;
@@ -44,6 +43,10 @@ pub async fn entry_point(
         get_user_achievements(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::UNLOCK_USER_ACHIEVEMENT_REQUEST.value() {
         unlock_user_achievement(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::CLEAR_USER_ACHIEVEMENT_REQUEST.value() {
+        clear_user_achievement(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::GET_LEADERBOARDS_REQUEST.value() {
+        get_leaderboards(payload, context, user_info, reqwest_client).await
     } else {
         warn!(
             "Unhandled communication service message type {}",
@@ -66,7 +69,7 @@ async fn auth_info_request(
         .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
 
     let pid = request_data.game_pid();
-    // TODO: Use PID to check if process is still running
+    // TODO: Use PID to connect to overlay
 
     let client_id = request_data.client_id();
     let client_secret = request_data.client_secret();
@@ -187,9 +190,9 @@ async fn get_user_stats(
     for stat in stats {
         let mut proto_stat = get_user_stats_response::UserStat::new();
         let value_type = match stat.values() {
-            FieldValue::INT { .. } => VALUE_TYPE_INT,
-            FieldValue::FLOAT { .. } => VALUE_TYPE_FLOAT,
-            FieldValue::AVGRATE { .. } => VALUE_TYPE_AVGRATE,
+            FieldValue::Int { .. } => VALUE_TYPE_INT,
+            FieldValue::Float { .. } => VALUE_TYPE_FLOAT,
+            FieldValue::Avgrate { .. } => VALUE_TYPE_AVGRATE,
         };
         proto_stat.set_stat_id(stat.stat_id().parse().unwrap());
         proto_stat.set_key(stat.stat_key().to_owned());
@@ -200,7 +203,7 @@ async fn get_user_stats(
         }
 
         match stat.values() {
-            FieldValue::INT {
+            FieldValue::Int {
                 value,
                 default_value,
                 min_value,
@@ -221,14 +224,14 @@ async fn get_user_stats(
                     proto_stat.set_int_max_change(max_change.to_owned());
                 }
             }
-            FieldValue::FLOAT {
+            FieldValue::Float {
                 value,
                 default_value,
                 min_value,
                 max_value,
                 max_change,
             }
-            | FieldValue::AVGRATE {
+            | FieldValue::Avgrate {
                 value,
                 default_value,
                 min_value,
@@ -264,7 +267,7 @@ async fn get_user_stats(
 
 async fn update_user_stat(
     proto_payload: &ProtoPayload,
-    mut context: &mut HandlerContext,
+    context: &mut HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -316,9 +319,9 @@ async fn get_user_achievements(
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let online_achievements =
-        gog::achievements::fetch_achievements(&context, &user_info.galaxy_user_id, reqwest_client)
+        gog::achievements::fetch_achievements(context, &user_info.galaxy_user_id, reqwest_client)
             .await;
-    let local_achievements = db::gameplay::get_achievements(&context, false).await;
+    let local_achievements = db::gameplay::get_achievements(context, false).await;
 
     let mut achievements_source = DataSource::Online;
     let (achievements, achievements_mode) = match online_achievements {
@@ -422,4 +425,87 @@ async fn unlock_user_achievement(
         header,
         payload: Vec::new(),
     })
+}
+
+async fn clear_user_achievement(
+    proto_payload: &ProtoPayload,
+    context: &mut HandlerContext,
+    user_info: Arc<UserInfo>,
+    reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    let request_data = ClearUserAchievementRequest::parse_from_bytes(&proto_payload.payload);
+    let request_data = request_data
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+
+    let ach_id: i64 = request_data.achievement_id().try_into().unwrap();
+
+    db::gameplay::set_achievement(context, ach_id, None)
+        .await
+        .expect("Failed to write achievement to database");
+    context.set_updated_achievements(true);
+
+    let mut header = Header::new();
+    header.set_type(
+        MessageType::CLEAR_USER_ACHIEVEMENT_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+
+    Ok(ProtoPayload {
+        header,
+        payload: Vec::new(),
+    })
+}
+async fn get_leaderboards(
+    proto_payload: &ProtoPayload,
+    context: &mut HandlerContext,
+    user_info: Arc<UserInfo>,
+    reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    let leaderboards = gog::leaderboards::get_leaderboards(context, reqwest_client)
+        .await
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+
+    let proto_defs = leaderboards.iter().map(|entry| {
+        let mut new_def = get_leaderboards_response::LeaderboardDefinition::new();
+        let display_type = match entry.display_type().as_str() {
+            "numeric" => DisplayType::DISPLAY_TYPE_NUMERIC,
+            "time_seconds" => DisplayType::DISPLAY_TYPE_TIME_SECONDS,
+            "time_milliseconds" => DisplayType::DISPLAY_TYPE_TIME_MILLISECONDS,
+            _ => DisplayType::DISPLAY_TYPE_UNDEFINED,
+        };
+        let sort_method = match entry.sort_method().as_str() {
+            "asc" => SortMethod::SORT_METHOD_ASCENDING,
+            "desc" => SortMethod::SORT_METHOD_DESCENDING,
+            _ => SortMethod::SORT_METHOD_UNDEFINED,
+        };
+
+        new_def.set_key(entry.key().clone());
+        new_def.set_name(entry.name().clone());
+        new_def.set_leaderboard_id(entry.id().parse().unwrap());
+        new_def.set_display_type(display_type);
+        new_def.set_sort_method(sort_method);
+
+        new_def
+    });
+
+    let mut payload_data = GetLeaderboardsResponse::new();
+    payload_data.leaderboard_definitions.extend(proto_defs);
+
+    let mut header = Header::new();
+    header.set_type(
+        MessageType::GET_LEADERBOARDS_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+
+    let payload = payload_data
+        .write_to_bytes()
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+
+    header.set_size(payload.len().try_into().unwrap());
+
+    Ok(ProtoPayload { header, payload })
 }

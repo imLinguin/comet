@@ -158,7 +158,7 @@ pub async fn handle_message(
 
 // Sync new things after a cool down or when about to exit
 async fn sync_routine(
-    mut context: &mut HandlerContext,
+    context: &mut HandlerContext,
     reqwest_client: &Client,
     user_info: Arc<UserInfo>,
 ) {
@@ -178,7 +178,7 @@ async fn sync_routine(
                 client_id,
                 client_secret,
                 &token.refresh_token,
-                &reqwest_client,
+                reqwest_client,
             )
             .await;
             match result {
@@ -207,7 +207,7 @@ async fn sync_routine(
     if *context.updated_achievements() {
         // Sync achievements
         info!("Uploading new achievements");
-        let changed_achievements = db::gameplay::get_achievements(&context, true).await;
+        let changed_achievements = db::gameplay::get_achievements(context, true).await;
         match changed_achievements {
             Ok((achievements, _mode)) => {
                 let db = context.db_connection();
@@ -220,14 +220,14 @@ async fn sync_routine(
                 for achievement in achievements {
                     debug!("Setting achievement {}", achievement.achievement_key());
                     let result = gog::achievements::set_achievement(
-                        &context,
-                        &reqwest_client,
+                        context,
+                        reqwest_client,
                         &user_info.galaxy_user_id,
                         achievement.achievement_id(),
                         achievement.date_unlocked().to_owned(),
                     )
                     .await;
-                    if let Ok(_) = result {
+                    if result.is_ok() {
                         // Update local entry with changed to false
                         let a_id: i64 = achievement.achievement_id().parse().unwrap();
                         sqlx::query("UPDATE achievement SET changed=0 WHERE id=$1")
@@ -248,7 +248,7 @@ async fn sync_routine(
     if *context.updated_stats() {
         // Sync stats
         info!("Uploading new stats");
-        let changed_statistics = db::gameplay::get_statistics(&context, true).await;
+        let changed_statistics = db::gameplay::get_statistics(context, true).await;
         match changed_statistics {
             Ok(stats) => {
                 let db = context.db_connection();
@@ -264,14 +264,14 @@ async fn sync_routine(
                 for stat in stats {
                     debug!("Setting stat {}", stat.stat_id());
                     let result = gog::stats::update_stat(
-                        &context,
-                        &reqwest_client,
+                        context,
+                        reqwest_client,
                         &user_info.galaxy_user_id,
                         &stat,
                     )
                     .await;
 
-                    if let Ok(_) = result {
+                    if result.is_ok() {
                         // Update local entry with changed to false
                         let a_id: i64 = stat.stat_id().parse().unwrap();
                         sqlx::query("UPDATE statistic SET changed=0 WHERE id=$1")

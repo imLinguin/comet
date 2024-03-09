@@ -19,6 +19,7 @@ pub struct Achievement {
 }
 
 impl Achievement {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         achievement_id: String,
         achievement_key: String,

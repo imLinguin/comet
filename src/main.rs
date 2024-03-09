@@ -11,9 +11,9 @@ extern crate lazy_static;
 mod api;
 mod constants;
 mod db;
+mod import_parsers;
 mod paths;
 mod proto;
-mod import_parsers;
 
 use crate::api::notification_pusher::PusherEvent;
 use crate::api::structs::{Token, UserInfo};
@@ -30,9 +30,17 @@ struct Args {
     user_id: Option<String>,
     #[arg(long, help = "User name")]
     username: String,
-    #[arg(long = "from-heroic", help = "Load tokens from heroic", group="import")]
+    #[arg(
+        long = "from-heroic",
+        help = "Load tokens from heroic",
+        group = "import"
+    )]
     heroic: bool,
-    #[arg(long="from-lutris", help = "Load tokens from lutris", group="import")]
+    #[arg(
+        long = "from-lutris",
+        help = "Load tokens from lutris",
+        group = "import"
+    )]
     #[cfg(target_os = "linux")]
     lutris: bool,
 }
@@ -43,7 +51,8 @@ async fn main() {
     let env = Env::new().filter_or("COMET_LOG", "info");
     Builder::from_env(env).target(Target::Stderr).init();
 
-    let (access_token, refresh_token, galaxy_user_id) = import_parsers::handle_credentials_import(&args);
+    let (access_token, refresh_token, galaxy_user_id) =
+        import_parsers::handle_credentials_import(&args);
 
     let reqwest_client = Client::builder()
         .user_agent(format!("Comet/{}", env!("CARGO_PKG_VERSION")))

@@ -31,7 +31,7 @@ pub fn handle_credentials_import(args: &crate::Args) -> (String, String, String)
             .as_str()
             .unwrap()
             .to_owned();
-        return (access_token, refresh_token, galaxy_user_id)
+        return (access_token, refresh_token, galaxy_user_id);
     }
 
     #[cfg(target_os = "linux")]
@@ -55,11 +55,14 @@ pub fn handle_credentials_import(args: &crate::Args) -> (String, String, String)
             .as_str()
             .unwrap()
             .to_owned();
-        return (access_token, refresh_token, galaxy_user_id)
+        return (access_token, refresh_token, galaxy_user_id);
     }
 
     let access_token = args.access_token.clone().expect("Access token is required");
-    let refresh_token = args.refresh_token.clone().expect("Refresh token is required");
+    let refresh_token = args
+        .refresh_token
+        .clone()
+        .expect("Refresh token is required");
     let galaxy_user_id = args.user_id.clone().expect("User id is required");
 
     (access_token, refresh_token, galaxy_user_id)

@@ -7,21 +7,21 @@ use serde::{Deserialize, Serialize};
 #[serde(tag = "type")]
 #[serde(rename_all = "lowercase")]
 pub enum FieldValue {
-    INT {
+    Int {
         value: i32,
         min_value: Option<i32>,
         max_value: Option<i32>,
         max_change: Option<i32>,
         default_value: Option<i32>,
     },
-    FLOAT {
+    Float {
         value: f32,
         min_value: Option<f32>,
         max_value: Option<f32>,
         max_change: Option<f32>,
         default_value: Option<f32>,
     },
-    AVGRATE {
+    Avgrate {
         value: f32,
         min_value: Option<f32>,
         max_value: Option<f32>,
@@ -126,10 +126,10 @@ pub async fn update_stat(
         stat.stat_id()
     );
     let value_type = match stat.values {
-        FieldValue::FLOAT { value, .. } | FieldValue::AVGRATE { value, .. } => {
+        FieldValue::Float { value, .. } | FieldValue::Avgrate { value, .. } => {
             UpdateStatRequestValueType::Float(value)
         }
-        FieldValue::INT { value, .. } => UpdateStatRequestValueType::Int(value),
+        FieldValue::Int { value, .. } => UpdateStatRequestValueType::Int(value),
     };
     let payload = UpdateStatRequest::new(value_type);
     let auth_header = String::from("Bearer ") + &token.access_token;

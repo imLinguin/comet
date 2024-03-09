@@ -38,8 +38,8 @@ pub async fn setup_connection(client_id: &str, user_id: &str) -> Result<SqlitePo
 
 pub async fn has_statistics(context: &HandlerContext) -> bool {
     let database = context.db_connection();
-    let mut connection = database.acquire().await;
-    if let Err(_) = connection {
+    let connection = database.acquire().await;
+    if connection.is_err() {
         return false;
     }
     let mut connection = connection.unwrap();
@@ -94,7 +94,7 @@ pub async fn get_statistics(
         let id: i64 = int_stat.try_get("id").unwrap();
         let key: String = int_stat.try_get("key").unwrap();
         let increment_only: u8 = int_stat.try_get("increment_only").unwrap();
-        let values = FieldValue::INT {
+        let values = FieldValue::Int {
             value: int_stat.try_get("value").unwrap(),
             default_value: int_stat.try_get("default_value").unwrap(),
             min_value: int_stat.try_get("min_value").unwrap(),
@@ -112,14 +112,14 @@ pub async fn get_statistics(
         let window: Option<f64> = float_stat.try_get("window").unwrap();
         let value_type: String = float_stat.try_get("type").unwrap();
         let values: FieldValue = match value_type.as_str() {
-            "FLOAT" => FieldValue::FLOAT {
+            "FLOAT" => FieldValue::Float {
                 value: float_stat.try_get("value").unwrap(),
                 default_value: float_stat.try_get("default_value").unwrap(),
                 min_value: float_stat.try_get("min_value").unwrap(),
                 max_value: float_stat.try_get("max_value").unwrap(),
                 max_change: float_stat.try_get("max_change").unwrap(),
             },
-            "AVGRATE" => FieldValue::AVGRATE {
+            "AVGRATE" => FieldValue::Avgrate {
                 value: float_stat.try_get("value").unwrap(),
                 default_value: float_stat.try_get("default_value").unwrap(),
                 min_value: float_stat.try_get("min_value").unwrap(),
@@ -147,9 +147,9 @@ pub async fn set_statistics(context: &HandlerContext, stats: &Vec<Stat>) -> Resu
     for stat in stats {
         let stat_id = stat.stat_id().parse::<i64>().unwrap();
         let stat_type = match stat.values() {
-            FieldValue::INT { .. } => "INT",
-            FieldValue::FLOAT { .. } => "FLOAT",
-            FieldValue::AVGRATE { .. } => "AVGRATE",
+            FieldValue::Int { .. } => "INT",
+            FieldValue::Float { .. } => "FLOAT",
+            FieldValue::Avgrate { .. } => "AVGRATE",
         };
         sqlx::query("INSERT INTO statistic VALUES ($1, $2, $3, $4, 0)")
             .bind(stat_id)
@@ -160,7 +160,7 @@ pub async fn set_statistics(context: &HandlerContext, stats: &Vec<Stat>) -> Resu
             .await?;
 
         match stat.values() {
-            FieldValue::INT {
+            FieldValue::Int {
                 value,
                 default_value,
                 max_value,
@@ -178,14 +178,14 @@ pub async fn set_statistics(context: &HandlerContext, stats: &Vec<Stat>) -> Resu
                     .await?;
             }
 
-            FieldValue::FLOAT {
+            FieldValue::Float {
                 value,
                 default_value,
                 min_value,
                 max_value,
                 max_change,
             }
-            | FieldValue::AVGRATE {
+            | FieldValue::Avgrate {
                 value,
                 default_value,
                 min_value,
@@ -250,7 +250,7 @@ pub async fn set_stat_int(context: &HandlerContext, stat_id: i64, value: i32) ->
 pub async fn has_achievements(context: &HandlerContext) -> bool {
     let database = context.db_connection();
     let mut connection = database.acquire().await;
-    if let Err(_) = connection {
+    if connection.is_err() {
         return false;
     }
     let mut connection = connection.unwrap();
@@ -359,17 +359,15 @@ pub async fn set_achievements(
             .fetch_optional(&mut *transaction)
             .await?;
 
-    if let None = previously_retrieved {
+    if previously_retrieved.is_none() {
         sqlx::query("INSERT INTO database_info VALUES ('achievements_retrieved', '1'), ('achievements_mode', $1)")
             .bind(mode)
             .execute(&mut *transaction)
             .await?;
     } else {
-        sqlx::query(
-            "UPDATE database_info SET value='1' WHERE key='achievements_retrieved'",
-        )
-        .execute(&mut *transaction)
-        .await?;
+        sqlx::query("UPDATE database_info SET value='1' WHERE key='achievements_retrieved'")
+            .execute(&mut *transaction)
+            .await?;
         sqlx::query("UPDATE database_info SET value='$1' WHERE key='achievements_mode'")
             .bind(mode)
             .execute(&mut *transaction)
