@@ -19,6 +19,8 @@ use crate::api::notification_pusher::PusherEvent;
 use crate::api::structs::{Token, UserInfo};
 use api::notification_pusher::NotificationPusherClient;
 
+static CERT: &[u8] = include_bytes!("../external/rootCA.pem");
+
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct Args {
@@ -54,8 +56,10 @@ async fn main() {
     let (access_token, refresh_token, galaxy_user_id) =
         import_parsers::handle_credentials_import(&args);
 
+    let certificate = reqwest::tls::Certificate::from_pem(CERT).unwrap();
     let reqwest_client = Client::builder()
         .user_agent(format!("Comet/{}", env!("CARGO_PKG_VERSION")))
+        .add_root_certificate(certificate)
         .build()
         .expect("Failed to build reqwest client");
 
