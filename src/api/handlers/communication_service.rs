@@ -1,8 +1,7 @@
 use crate::api::gog;
-use crate::api::gog::leaderboards::get_leaderboards_entries;
 use crate::api::gog::stats::FieldValue;
 use crate::api::handlers::context::HandlerContext;
-use crate::api::structs::{DataSource, IDType, UserInfo};
+use crate::api::structs::{DataSource, UserInfo};
 use crate::db::gameplay::{set_stat_float, set_stat_int};
 use crate::{constants, db};
 use chrono::{Local, TimeZone, Utc};
@@ -14,7 +13,6 @@ use std::sync::Arc;
 use crate::proto::common_utils::ProtoPayload;
 
 use super::error::*;
-use crate::proto::galaxy_protocols_communication_service::get_leaderboard_entries_response::LeaderboardEntry;
 use crate::proto::galaxy_protocols_communication_service::get_user_achievements_response::UserAchievement;
 use crate::proto::galaxy_protocols_communication_service::EnvironmentType::ENVIRONMENT_PRODUCTION;
 use crate::proto::galaxy_protocols_communication_service::Region::REGION_WORLD_WIDE;
@@ -51,6 +49,10 @@ pub async fn entry_point(
         get_leaderboards(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_LEADERBOARD_ENTRIES_GLOBAL_REQUEST.value() {
         get_leaderboard_entries_global(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::GET_LEADERBOARD_ENTRIES_AROUND_USER_REQUEST.value() {
+        get_leaderboard_entries_around_user(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::GET_LEADERBOARD_ENTRIES_FOR_USERS_REQUEST.value() {
+        get_leaderboard_entries_for_users(payload, context, user_info, reqwest_client).await
     } else {
         warn!(
             "Unhandled communication service message type {}",
@@ -152,7 +154,7 @@ async fn auth_info_request(
 }
 
 async fn get_user_stats(
-    payload: &ProtoPayload,
+    _payload: &ProtoPayload,
     context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
@@ -272,8 +274,8 @@ async fn get_user_stats(
 async fn update_user_stat(
     proto_payload: &ProtoPayload,
     context: &mut HandlerContext,
-    user_info: Arc<UserInfo>,
-    reqwest_client: &Client,
+    _user_info: Arc<UserInfo>,
+    _reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request_data = UpdateUserStatRequest::parse_from_bytes(&proto_payload.payload);
     let request_data = request_data
@@ -317,7 +319,7 @@ async fn update_user_stat(
 }
 
 async fn get_user_achievements(
-    proto_payload: &ProtoPayload,
+    _proto_payload: &ProtoPayload,
     context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
@@ -392,8 +394,8 @@ async fn get_user_achievements(
 async fn unlock_user_achievement(
     proto_payload: &ProtoPayload,
     context: &mut HandlerContext,
-    user_info: Arc<UserInfo>,
-    reqwest_client: &Client,
+    _user_info: Arc<UserInfo>,
+    _reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request_data = UnlockUserAchievementRequest::parse_from_bytes(&proto_payload.payload);
     let request_data = request_data
@@ -434,8 +436,8 @@ async fn unlock_user_achievement(
 async fn clear_user_achievement(
     proto_payload: &ProtoPayload,
     context: &mut HandlerContext,
-    user_info: Arc<UserInfo>,
-    reqwest_client: &Client,
+    _user_info: Arc<UserInfo>,
+    _reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request_data = ClearUserAchievementRequest::parse_from_bytes(&proto_payload.payload);
     let request_data = request_data
@@ -462,9 +464,9 @@ async fn clear_user_achievement(
     })
 }
 async fn get_leaderboards(
-    proto_payload: &ProtoPayload,
+    _proto_payload: &ProtoPayload,
     context: &mut HandlerContext,
-    user_info: Arc<UserInfo>,
+    _user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let leaderboards = gog::leaderboards::get_leaderboards(context, reqwest_client)
@@ -517,60 +519,74 @@ async fn get_leaderboards(
 async fn get_leaderboard_entries_global(
     proto_payload: &ProtoPayload,
     context: &mut HandlerContext,
-    user_info: Arc<UserInfo>,
+    _user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request = GetLeaderboardEntriesGlobalRequest::parse_from_bytes(&proto_payload.payload)
         .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
-    let mut header = Header::new();
-    header.set_type(
-        MessageType::GET_LEADERBOARD_ENTRIES_RESPONSE
-            .value()
-            .try_into()
-            .unwrap(),
-    );
 
     let params = [
-        ("range_start".to_owned(), request.range_start().to_string()),
-        ("range_end".to_owned(), request.range_end().to_string()),
+        ("range_start", request.range_start().to_string()),
+        ("range_end", request.range_end().to_string()),
     ];
-    let leaderboard_response =
-        get_leaderboards_entries(context, reqwest_client, request.leaderboard_id(), params).await;
 
-    let mut payload_data = match leaderboard_response {
-        Ok(results) => {
-            let mut data = GetLeaderboardEntriesResponse::new();
-            data.set_leaderboard_entry_total_count(results.leaderboard_entry_total_count);
-            data.leaderboard_entries
-                .extend(results.items.iter().map(|item| {
-                    let mut new_entry = LeaderboardEntry::new();
-                    let user_id: u64 = item.user_id.parse().unwrap();
-                    let user_id = (IDType::IdTypeUser as u64) << 56 | user_id;
-                    new_entry.set_user_id(user_id);
-                    new_entry.set_score(item.score);
-                    new_entry.set_rank(item.rank);
-                    new_entry
-                }));
-            data.write_to_bytes().unwrap()
-        }
-        Err(err) => {
-            warn!("Leaderboards request error: {}", err);
-            if err.is_status() {
-                if err.status().unwrap() == reqwest::StatusCode::NOT_FOUND {
-                    header
-                        .mut_special_fields()
-                        .mut_unknown_fields()
-                        .add_varint(101, 404);
-                }
-            }
-            Vec::new()
-        }
-    };
+    Ok(super::utils::handle_leaderboard_entries_request(
+        context,
+        reqwest_client,
+        request.leaderboard_id(),
+        params,
+    )
+    .await)
+}
+async fn get_leaderboard_entries_around_user(
+    proto_payload: &ProtoPayload,
+    context: &mut HandlerContext,
+    _user_info: Arc<UserInfo>,
+    reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    let request = GetLeaderboardEntriesAroundUserRequest::parse_from_bytes(&proto_payload.payload)
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
 
-    header.set_size(payload_data.len().try_into().unwrap());
+    let user_id = request.user_id() << 8 >> 8;
 
-    Ok(ProtoPayload {
-        header,
-        payload: payload_data,
-    })
+    let params = [
+        ("count_before", request.count_before().to_string()),
+        ("count_after", request.count_after().to_string()),
+        ("user", user_id.to_string()),
+    ];
+
+    Ok(super::utils::handle_leaderboard_entries_request(
+        context,
+        reqwest_client,
+        request.leaderboard_id(),
+        params,
+    )
+    .await)
+}
+
+async fn get_leaderboard_entries_for_users(
+    proto_payload: &ProtoPayload,
+    context: &mut HandlerContext,
+    _user_info: Arc<UserInfo>,
+    reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    let request = GetLeaderboardEntriesForUsersRequest::parse_from_bytes(&proto_payload.payload)
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+
+    let user_ids: String = request
+        .user_ids
+        .iter()
+        .map(|id| (id << 8 >> 8).to_string())
+        .collect::<Vec<String>>()
+        .join(",");
+
+    let params = [("users", user_ids)];
+
+    Ok(super::utils::handle_leaderboard_entries_request(
+        context,
+        reqwest_client,
+        request.leaderboard_id(),
+        params,
+    )
+    .await)
 }
