@@ -62,7 +62,7 @@ pub async fn entry_point(
                     },
                     Err(err) => {
                         if err.kind() == tokio::io::ErrorKind::UnexpectedEof {
-                            info!("Socket connection closed");
+                            info!("Socket connection closed with {:?}", context.client_id());
                             break;
                         }
                         error!("Was unable to read header size buffer {}", err);

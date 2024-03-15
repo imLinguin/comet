@@ -8,7 +8,7 @@ Note: that means it can't and won't replace Communication Service in official cl
 This will provide minimal and platform-agnostic SDK. For use in game launchers like Heroic or Lutris
 
 Project is continuation of Yepoleb's work [https://gitlab.com/Yepoleb/comet/](https://gitlab.com/Yepoleb/comet/) but in
-~~Python~~ now in Rust
+~~Python~~ [now in Rust](https://github.com/imLinguin/comet/issues/15)
 
 ## Supported Requests
 
@@ -30,7 +30,7 @@ Excluding Overlay, and Cloud Sync related.
 - [x] GET_LEADERBOARD_ENTRIES_FOR_USERS_REQUEST
 - [ ] SET_LEADERBOARD_SCORE_REQUEST
 - [ ] AUTH_STATE_CHANGE_NOTIFICATION
-- [ ] GET_LEADERBOARDS_BY_KEY_REQUEST
+- [x] GET_LEADERBOARDS_BY_KEY_REQUEST
 - [ ] CREATE_LEADERBOARD_REQUEST
 - [ ] OVERLAY_STATE_CHANGE_NOTIFICATION
 

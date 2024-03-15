@@ -1,5 +1,7 @@
+use crate::api::gog;
 use crate::api::gog::leaderboards::get_leaderboards_entries;
 use crate::api::handlers::context::HandlerContext;
+use crate::api::handlers::error::{MessageHandlingError, MessageHandlingErrorKind};
 use crate::api::structs::IDType;
 use log::{debug, warn};
 use protobuf::{Enum, Message};
@@ -8,7 +10,8 @@ use tokio::{io::AsyncReadExt, net::TcpStream};
 
 use crate::proto::galaxy_protocols_communication_service::get_leaderboard_entries_response::LeaderboardEntry;
 use crate::proto::galaxy_protocols_communication_service::{
-    GetLeaderboardEntriesResponse, MessageType,
+    get_leaderboards_response, DisplayType, GetLeaderboardEntriesResponse, GetLeaderboardsResponse,
+    MessageType, SortMethod,
 };
 use crate::proto::gog_protocols_pb::Header;
 use crate::proto::{common_utils::ProtoPayload, gog_protocols_pb};
@@ -38,6 +41,63 @@ pub async fn parse_payload(
     })
 }
 
+pub async fn handle_leaderboards_query<I, K, V>(
+    context: &mut HandlerContext,
+    reqwest_client: &Client,
+    params: I,
+) -> Result<ProtoPayload, MessageHandlingError>
+where
+    I: IntoIterator<Item = (K, V)>,
+    K: AsRef<str>,
+    V: AsRef<str>,
+{
+    let leaderboards = gog::leaderboards::get_leaderboards(context, reqwest_client, params)
+        .await
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+
+    let proto_defs = leaderboards.iter().map(|entry| {
+        let mut new_def = get_leaderboards_response::LeaderboardDefinition::new();
+        let display_type = match entry.display_type().as_str() {
+            "numeric" => DisplayType::DISPLAY_TYPE_NUMERIC,
+            "time_seconds" => DisplayType::DISPLAY_TYPE_TIME_SECONDS,
+            "time_milliseconds" => DisplayType::DISPLAY_TYPE_TIME_MILLISECONDS,
+            _ => DisplayType::DISPLAY_TYPE_UNDEFINED,
+        };
+        let sort_method = match entry.sort_method().as_str() {
+            "asc" => SortMethod::SORT_METHOD_ASCENDING,
+            "desc" => SortMethod::SORT_METHOD_DESCENDING,
+            _ => SortMethod::SORT_METHOD_UNDEFINED,
+        };
+
+        new_def.set_key(entry.key().clone());
+        new_def.set_name(entry.name().clone());
+        new_def.set_leaderboard_id(entry.id().parse().unwrap());
+        new_def.set_display_type(display_type);
+        new_def.set_sort_method(sort_method);
+
+        new_def
+    });
+
+    let mut payload_data = GetLeaderboardsResponse::new();
+    payload_data.leaderboard_definitions.extend(proto_defs);
+
+    let mut header = Header::new();
+    header.set_type(
+        MessageType::GET_LEADERBOARDS_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+
+    let payload = payload_data
+        .write_to_bytes()
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+
+    header.set_size(payload.len().try_into().unwrap());
+
+    Ok(ProtoPayload { header, payload })
+}
+
 pub async fn handle_leaderboard_entries_request<I, K, V>(
     context: &mut HandlerContext,
     reqwest_client: &Client,
@@ -60,7 +120,7 @@ where
     let leaderboard_response =
         get_leaderboards_entries(context, reqwest_client, leaderboard_id, params).await;
 
-    let mut payload = match leaderboard_response {
+    let payload = match leaderboard_response {
         Ok(results) => {
             let mut data = GetLeaderboardEntriesResponse::new();
             data.set_leaderboard_entry_total_count(results.leaderboard_entry_total_count);

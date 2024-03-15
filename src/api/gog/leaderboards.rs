@@ -22,10 +22,16 @@ pub struct LeaderboardsResponse {
     pub items: Vec<LeaderboardDefinition>,
 }
 
-pub async fn get_leaderboards(
+pub async fn get_leaderboards<I, K, V>(
     context: &HandlerContext,
     reqwest_client: &Client,
-) -> Result<Vec<LeaderboardDefinition>, reqwest::Error> {
+    params: I,
+) -> Result<Vec<LeaderboardDefinition>, reqwest::Error>
+where
+    I: IntoIterator<Item = (K, V)>,
+    K: AsRef<str>,
+    V: AsRef<str>,
+{
     let lock = context.token_store().lock().await;
     let client_id = context.client_id().clone().unwrap();
     let token = lock.get(&client_id).unwrap().clone();
@@ -35,9 +41,11 @@ pub async fn get_leaderboards(
         &client_id
     );
 
+    let new_url = Url::parse_with_params(&url, params).unwrap();
+
     let auth_header = String::from("Bearer ") + &token.access_token;
     let response = reqwest_client
-        .get(url)
+        .get(new_url)
         .header("Authorization", &auth_header)
         .header("X-Gog-Lc", "en-US") // TODO: Handle languages
         .send()

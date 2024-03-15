@@ -47,6 +47,8 @@ pub async fn entry_point(
         clear_user_achievement(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_LEADERBOARDS_REQUEST.value() {
         get_leaderboards(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::GET_LEADERBOARDS_BY_KEY_REQUEST.value() {
+        get_leaderboards_by_key(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_LEADERBOARD_ENTRIES_GLOBAL_REQUEST.value() {
         get_leaderboard_entries_global(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_LEADERBOARD_ENTRIES_AROUND_USER_REQUEST.value() {
@@ -74,7 +76,7 @@ async fn auth_info_request(
     let request_data = request_data
         .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
 
-    let pid = request_data.game_pid();
+    let _pid = request_data.game_pid();
     // TODO: Use PID to connect to overlay
 
     let client_id = request_data.client_id();
@@ -469,51 +471,20 @@ async fn get_leaderboards(
     _user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
-    let leaderboards = gog::leaderboards::get_leaderboards(context, reqwest_client)
-        .await
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+    super::utils::handle_leaderboards_query(context, reqwest_client, [] as [(&str, &str); 0]).await
+}
 
-    let proto_defs = leaderboards.iter().map(|entry| {
-        let mut new_def = get_leaderboards_response::LeaderboardDefinition::new();
-        let display_type = match entry.display_type().as_str() {
-            "numeric" => DisplayType::DISPLAY_TYPE_NUMERIC,
-            "time_seconds" => DisplayType::DISPLAY_TYPE_TIME_SECONDS,
-            "time_milliseconds" => DisplayType::DISPLAY_TYPE_TIME_MILLISECONDS,
-            _ => DisplayType::DISPLAY_TYPE_UNDEFINED,
-        };
-        let sort_method = match entry.sort_method().as_str() {
-            "asc" => SortMethod::SORT_METHOD_ASCENDING,
-            "desc" => SortMethod::SORT_METHOD_DESCENDING,
-            _ => SortMethod::SORT_METHOD_UNDEFINED,
-        };
-
-        new_def.set_key(entry.key().clone());
-        new_def.set_name(entry.name().clone());
-        new_def.set_leaderboard_id(entry.id().parse().unwrap());
-        new_def.set_display_type(display_type);
-        new_def.set_sort_method(sort_method);
-
-        new_def
-    });
-
-    let mut payload_data = GetLeaderboardsResponse::new();
-    payload_data.leaderboard_definitions.extend(proto_defs);
-
-    let mut header = Header::new();
-    header.set_type(
-        MessageType::GET_LEADERBOARDS_RESPONSE
-            .value()
-            .try_into()
-            .unwrap(),
-    );
-
-    let payload = payload_data
-        .write_to_bytes()
+async fn get_leaderboards_by_key(
+    proto_payload: &ProtoPayload,
+    context: &mut HandlerContext,
+    _user_info: Arc<UserInfo>,
+    reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    let request = GetLeaderboardsByKeyRequest::parse_from_bytes(&proto_payload.payload)
         .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
 
-    header.set_size(payload.len().try_into().unwrap());
-
-    Ok(ProtoPayload { header, payload })
+    let keys = request.key.join(",");
+    super::utils::handle_leaderboards_query(context, reqwest_client, [("keys", keys)]).await
 }
 
 async fn get_leaderboard_entries_global(
