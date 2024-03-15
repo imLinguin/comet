@@ -35,4 +35,10 @@ pub mod structs {
         Online,
         Local,
     }
+
+    pub enum IDType {
+        IdTypeUnassigned,
+        IdTypeLobby,
+        IdTypeUser
+    }
 }

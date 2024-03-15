@@ -1,4 +1,5 @@
 use crate::api::handlers::context::HandlerContext;
+use crate::api::handlers::error::{MessageHandlingError, MessageHandlingErrorKind};
 use derive_getters::Getters;
 use reqwest::{Client, Error};
 use serde::{Deserialize, Serialize};
@@ -62,10 +63,15 @@ pub async fn fetch_achievements(
     context: &HandlerContext,
     user_id: &str,
     reqwest_client: &Client,
-) -> Result<(Vec<Achievement>, String), Error> {
+) -> Result<(Vec<Achievement>, String), MessageHandlingError> {
     let lock = context.token_store().lock().await;
     let client_id = context.client_id().clone().unwrap();
-    let token = lock.get(&client_id).unwrap().clone();
+    let token = lock
+        .get(&client_id)
+        .ok_or(MessageHandlingError::new(
+            MessageHandlingErrorKind::Unauthorized,
+        ))?
+        .clone();
     drop(lock);
 
     let url = format!(
@@ -78,9 +84,13 @@ pub async fn fetch_achievements(
         .header("Authorization", &auth_header)
         .header("X-Gog-Lc", "en-US") // TODO: Handle languages
         .send()
-        .await?;
+        .await
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
 
-    let achievements_data = response.json::<AchievementsResponse>().await?;
+    let achievements_data = response
+        .json::<AchievementsResponse>()
+        .await
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
 
     Ok((achievements_data.items, achievements_data.achievements_mode))
 }

@@ -249,7 +249,7 @@ pub async fn set_stat_int(context: &HandlerContext, stat_id: i64, value: i32) ->
 
 pub async fn has_achievements(context: &HandlerContext) -> bool {
     let database = context.db_connection();
-    let mut connection = database.acquire().await;
+    let connection = database.acquire().await;
     if connection.is_err() {
         return false;
     }

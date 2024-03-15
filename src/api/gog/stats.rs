@@ -1,4 +1,5 @@
 use crate::api::handlers::context::HandlerContext;
+use crate::api::handlers::error::{MessageHandlingError, MessageHandlingErrorKind};
 use derive_getters::Getters;
 use reqwest::{Client, Error};
 use serde::{Deserialize, Serialize};
@@ -68,10 +69,15 @@ pub async fn fetch_stats(
     context: &HandlerContext,
     user_id: &str,
     reqwest_client: &Client,
-) -> Result<Vec<Stat>, Error> {
+) -> Result<Vec<Stat>, MessageHandlingError> {
     let lock = context.token_store().lock().await;
     let client_id = context.client_id().clone().unwrap();
-    let token = lock.get(&client_id).unwrap().clone();
+    let token = lock
+        .get(&client_id)
+        .ok_or(MessageHandlingError::new(
+            MessageHandlingErrorKind::Unauthorized,
+        ))?
+        .clone();
     drop(lock);
 
     let url = format!(
@@ -83,9 +89,13 @@ pub async fn fetch_stats(
         .get(url)
         .header("Authorization", &auth_header)
         .send()
-        .await?;
+        .await
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
 
-    let stats_data = response.json::<StatsResponse>().await?;
+    let stats_data = response
+        .json::<StatsResponse>()
+        .await
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
 
     Ok(stats_data.items)
 }

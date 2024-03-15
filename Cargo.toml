@@ -15,7 +15,7 @@ tokio-tungstenite = { version = "0.21", features = ["rustls-tls-native-roots"] }
 futures-util = "0.3"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-protobuf = "3.3"
+protobuf = "3.4"
 clap = { version = "4.4", features = ["derive"] }
 log = "0.4.19"
 env_logger = "0.11.1"
@@ -27,7 +27,7 @@ rustls = "0.22"
 rustls-pemfile = "2.1.1"
 
 [build-dependencies]
-protobuf-codegen = "3.3.0"
+protobuf-codegen = "3.4.0"
 protoc-bin-vendored = "3.0.0"
 
 
