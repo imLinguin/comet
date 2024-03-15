@@ -23,6 +23,8 @@ sqlx = { version = "0.7", features = [ "runtime-tokio", "sqlite" ] }
 lazy_static = "1.4.0"
 derive-getters = "0.3.0"
 chrono = "0.4.33"
+rustls = "0.22"
+rustls-pemfile = "2.1.1"
 
 [build-dependencies]
 protobuf-codegen = "3.3.0"
