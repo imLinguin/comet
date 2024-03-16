@@ -24,9 +24,7 @@ lazy_static! {
     static ref TLS_CONFIG: Arc<rustls::ClientConfig> = Arc::new({
         let mut root_store = rustls::RootCertStore::empty();
         let mut reader = std::io::BufReader::new(crate::CERT);
-        let certs = rustls_pemfile::certs(&mut reader)
-            .filter(|crt| crt.is_ok())
-            .map(|crt| crt.unwrap());
+        let certs = rustls_pemfile::certs(&mut reader).filter_map(|crt| crt.ok());
         root_store.add_parsable_certificates(certs);
         rustls::ClientConfig::builder()
             .with_root_certificates(root_store)

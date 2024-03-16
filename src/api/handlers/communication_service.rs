@@ -1,7 +1,7 @@
 use crate::api::gog;
 use crate::api::gog::stats::FieldValue;
 use crate::api::handlers::context::HandlerContext;
-use crate::api::structs::{DataSource, UserInfo};
+use crate::api::structs::{DataSource, IDType, UserInfo};
 use crate::db::gameplay::{set_stat_float, set_stat_int};
 use crate::{constants, db};
 use chrono::{Local, TimeZone, Utc};
@@ -143,7 +143,9 @@ async fn auth_info_request(
     };
     content.set_region(REGION_WORLD_WIDE); // TODO: Handle China region
     content.set_environment_type(ENVIRONMENT_PRODUCTION);
-    content.set_user_id(user_info.galaxy_user_id.parse().unwrap());
+    content.set_user_id(
+        ((IDType::User as u64) << 56) | user_info.galaxy_user_id.parse::<u64>().unwrap(),
+    );
     content.set_user_name(user_info.username.clone());
 
     let content_buffer = content.write_to_bytes().unwrap();

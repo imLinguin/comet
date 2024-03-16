@@ -37,8 +37,8 @@ pub mod structs {
     }
 
     pub enum IDType {
-        IdTypeUnassigned,
-        IdTypeLobby,
-        IdTypeUser,
+        Unassigned,
+        Lobby,
+        User,
     }
 }
