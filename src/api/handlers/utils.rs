@@ -128,8 +128,8 @@ where
                 .extend(results.items.iter().map(|item| {
                     let mut new_entry = LeaderboardEntry::new();
                     let user_id: u64 = item.user_id.parse().unwrap();
-                    let user_id = (IDType::User as u64) << 56 | user_id;
-                    new_entry.set_user_id(user_id);
+                    let user_id = IDType::User(user_id);
+                    new_entry.set_user_id(user_id.value());
                     new_entry.set_score(item.score);
                     new_entry.set_rank(item.rank);
                     new_entry

@@ -37,8 +37,35 @@ pub mod structs {
     }
 
     pub enum IDType {
-        Unassigned,
-        Lobby,
-        User,
+        Unassigned(u64),
+        Lobby(u64),
+        User(u64),
+    }
+
+    impl IDType {
+        /// Parse entity id to this enum
+        pub fn parse(id: u64) -> Self {
+            let flag = id >> 56;
+            let new_value = id << 8 >> 8;
+            match flag {
+                1 => Self::Lobby(new_value),
+                2 => Self::User(new_value),
+                _ => IDType::Unassigned(new_value),
+            }
+        }
+        /// Return entity id with magic flag
+        pub fn value(&self) -> u64 {
+            match self {
+                Self::Unassigned(id) => *id,
+                Self::Lobby(id) => 1 << 56 | id,
+                Self::User(id) => 2 << 56 | id,
+            }
+        }
+        /// Return underlying entity id
+        pub fn inner(&self) -> u64 {
+            match self {
+                Self::Unassigned(id) | Self::Lobby(id) | Self::User(id) => *id,
+            }
+        }
     }
 }

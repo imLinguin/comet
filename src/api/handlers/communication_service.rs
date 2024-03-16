@@ -143,9 +143,8 @@ async fn auth_info_request(
     };
     content.set_region(REGION_WORLD_WIDE); // TODO: Handle China region
     content.set_environment_type(ENVIRONMENT_PRODUCTION);
-    content.set_user_id(
-        ((IDType::User as u64) << 56) | user_info.galaxy_user_id.parse::<u64>().unwrap(),
-    );
+    let user_id = IDType::User(user_info.galaxy_user_id.parse().unwrap());
+    content.set_user_id(user_id.value());
     content.set_user_name(user_info.username.clone());
 
     let content_buffer = content.write_to_bytes().unwrap();
@@ -520,12 +519,12 @@ async fn get_leaderboard_entries_around_user(
     let request = GetLeaderboardEntriesAroundUserRequest::parse_from_bytes(&proto_payload.payload)
         .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
 
-    let user_id = request.user_id() << 8 >> 8;
+    let user_id = IDType::parse(request.user_id());
 
     let params = [
         ("count_before", request.count_before().to_string()),
         ("count_after", request.count_after().to_string()),
-        ("user", user_id.to_string()),
+        ("user", user_id.inner().to_string()),
     ];
 
     Ok(super::utils::handle_leaderboard_entries_request(
