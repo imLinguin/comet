@@ -73,14 +73,12 @@ https://login.gog.com/auth?client_id=46899977096215655&layout=galaxy&redirect_ur
 ### Running
 
 ```
-<<<<<<< HEAD
 comet --token "<access_token>" --refresh_token "<refresh_token>" --user-id <user_id> --username <USERNAME>
 ```
 
 Or if you are using Heroic/gogdl
 
 ```
-<<<<<<< HEAD
 comet --from-heroic --username <USERNAME>
 ```
 
