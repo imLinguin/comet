@@ -9,16 +9,19 @@ jobs:
   build:
     strategy:
       matrix:
-        target: [x86_64-unknown-linux-gnu]
+        target: [aarch64-unknown-linux-gnu, x86_64-unknown-linux-gnu]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: 'recursive'
       - name: Setup target
         run: rustup target add ${{ matrix.target }}
+      - run: sudo dpkg --add-architecture arm64
       - if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
         run: sudo apt install gcc-aarch64-linux-gnu
       - name: Setup dependencies
-        run: sudo apt install libssl-dev
+        run: sudo apt install libssl-dev libssl-dev:arm64
       - name: Build
         run: cargo build --verbose --release --target ${{ matrix.target }}
 
