@@ -134,8 +134,8 @@ async fn auth_info_request(
                 }
             }
             // Check if we can continue offline
-            let ach = db::gameplay::has_achievements(context).await;
-            let stat = db::gameplay::has_statistics(context).await;
+            let ach = db::gameplay::has_achievements(context.db_connection()).await;
+            let stat = db::gameplay::has_statistics(context.db_connection()).await;
             if !stat && !ach {
                 panic!("No statistics or achievements locally, can't continue");
             }
@@ -162,8 +162,13 @@ async fn get_user_stats(
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
-    let new_stats =
-        gog::stats::fetch_stats(context, &user_info.galaxy_user_id, reqwest_client).await;
+    let new_stats = gog::stats::fetch_stats(
+        context.token_store(),
+        &context.client_id().clone().unwrap(),
+        &user_info.galaxy_user_id,
+        reqwest_client,
+    )
+    .await;
     let db_stats = db::gameplay::get_statistics(context, false).await;
 
     let mut stats_source = DataSource::Online;
@@ -180,7 +185,7 @@ async fn get_user_stats(
     };
 
     if stats_source == DataSource::Online {
-        if let Err(err) = db::gameplay::set_statistics(context, &stats).await {
+        if let Err(err) = db::gameplay::set_statistics(context.db_connection(), &stats).await {
             warn!("Failed to set statistics in gameplay database {:?}", err);
         }
     }
@@ -327,9 +332,13 @@ async fn get_user_achievements(
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
-    let online_achievements =
-        gog::achievements::fetch_achievements(context, &user_info.galaxy_user_id, reqwest_client)
-            .await;
+    let online_achievements = gog::achievements::fetch_achievements(
+        context.token_store(),
+        &context.client_id().clone().unwrap(),
+        &user_info.galaxy_user_id,
+        reqwest_client,
+    )
+    .await;
     let local_achievements = db::gameplay::get_achievements(context, false).await;
 
     let mut achievements_source = DataSource::Online;
@@ -345,8 +354,12 @@ async fn get_user_achievements(
     };
 
     if achievements_source == DataSource::Online {
-        if let Err(err) =
-            db::gameplay::set_achievements(context, &achievements, &achievements_mode).await
+        if let Err(err) = db::gameplay::set_achievements(
+            context.db_connection(),
+            &achievements,
+            &achievements_mode,
+        )
+        .await
         {
             warn!("Failed to set achievements in gameplay database {:?}", err);
         }

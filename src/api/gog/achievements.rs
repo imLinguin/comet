@@ -1,5 +1,6 @@
 use crate::api::handlers::context::HandlerContext;
 use crate::api::handlers::error::{MessageHandlingError, MessageHandlingErrorKind};
+use crate::constants::TokenStorage;
 use derive_getters::Getters;
 use reqwest::{Client, Error};
 use serde::{Deserialize, Serialize};
@@ -60,14 +61,14 @@ pub struct AchievementsResponse {
 }
 
 pub async fn fetch_achievements(
-    context: &HandlerContext,
+    token_store: &TokenStorage,
+    client_id: &str,
     user_id: &str,
     reqwest_client: &Client,
 ) -> Result<(Vec<Achievement>, String), MessageHandlingError> {
-    let lock = context.token_store().lock().await;
-    let client_id = context.client_id().clone().unwrap();
+    let lock = token_store.lock().await;
     let token = lock
-        .get(&client_id)
+        .get(client_id)
         .ok_or(MessageHandlingError::new(
             MessageHandlingErrorKind::Unauthorized,
         ))?
@@ -76,7 +77,7 @@ pub async fn fetch_achievements(
 
     let url = format!(
         "https://gameplay.gog.com/clients/{}/users/{}/achievements",
-        &client_id, user_id
+        client_id, user_id
     );
     let auth_header = String::from("Bearer ") + &token.access_token;
     let response = reqwest_client

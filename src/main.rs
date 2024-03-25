@@ -1,6 +1,6 @@
 use std::{collections::HashMap, sync::Arc};
 
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use env_logger::{Builder, Env, Target};
 use log::{error, info, warn};
 use reqwest::Client;
@@ -21,6 +21,15 @@ use api::notification_pusher::NotificationPusherClient;
 
 static CERT: &[u8] = include_bytes!("../external/rootCA.pem");
 
+#[derive(Subcommand, Debug)]
+enum SubCommand {
+    #[command(about = "Preload achievements and statistics for offline usage")]
+    Preload {
+        client_id: String,
+        client_secret: String,
+    },
+}
+
 #[derive(Parser, Debug)]
 #[command(author, version, about)]
 struct Args {
@@ -35,16 +44,21 @@ struct Args {
     #[arg(
         long = "from-heroic",
         help = "Load tokens from heroic",
+        global = true,
         group = "import"
     )]
     heroic: bool,
     #[arg(
         long = "from-lutris",
         help = "Load tokens from lutris",
+        global = true,
         group = "import"
     )]
     #[cfg(target_os = "linux")]
     lutris: bool,
+
+    #[command(subcommand)]
+    subcommand: Option<SubCommand>,
 }
 
 #[tokio::main]
@@ -65,8 +79,87 @@ async fn main() {
 
     let user_info = Arc::new(UserInfo {
         username: args.username,
-        galaxy_user_id,
+        galaxy_user_id: galaxy_user_id.clone(),
     });
+
+    let token_store: constants::TokenStorage = Arc::new(Mutex::new(HashMap::new()));
+    let galaxy_token = Token::new(access_token.clone(), refresh_token.clone());
+    let mut store_lock = token_store.lock().await;
+    store_lock.insert(String::from(constants::GALAXY_CLIENT_ID), galaxy_token);
+    drop(store_lock);
+
+    if let Some(subcommand) = args.subcommand {
+        match subcommand {
+            SubCommand::Preload {
+                client_id,
+                client_secret,
+            } => {
+                let database = db::gameplay::setup_connection(&client_id, &galaxy_user_id)
+                    .await
+                    .expect("Failed to setup the database");
+
+                if !db::gameplay::has_achievements(database.clone()).await
+                    || !db::gameplay::has_statistics(database.clone()).await
+                {
+                    let mut connection = database.acquire().await.unwrap();
+                    sqlx::query(db::gameplay::SETUP_QUERY)
+                        .execute(&mut *connection)
+                        .await
+                        .expect("Failed to setup the database");
+                    drop(connection);
+
+                    let new_token = api::gog::users::get_token_for(
+                        &client_id,
+                        &client_secret,
+                        &refresh_token,
+                        &reqwest_client,
+                    )
+                    .await
+                    .expect("Failed to obtain credentials");
+
+                    let mut tokens = token_store.lock().await;
+                    tokens.insert(client_id.clone(), new_token);
+                    drop(tokens);
+
+                    let new_achievements = api::gog::achievements::fetch_achievements(
+                        &token_store,
+                        &client_id,
+                        &galaxy_user_id,
+                        &reqwest_client,
+                    )
+                    .await;
+                    let new_stats = api::gog::stats::fetch_stats(
+                        &token_store,
+                        &client_id,
+                        &galaxy_user_id,
+                        &reqwest_client,
+                    )
+                    .await;
+
+                    if let Ok((achievements, mode)) = new_achievements {
+                        db::gameplay::set_achievements(database.clone(), &achievements, &mode)
+                            .await
+                            .expect("Failed to write to the database");
+                        info!("Got achievements");
+                    } else {
+                        error!("Failed to fetch achievements");
+                    }
+                    if let Ok(stats) = new_stats {
+                        db::gameplay::set_statistics(database.clone(), &stats)
+                            .await
+                            .expect("Failed to write to the database");
+                        info!("Got stats");
+                    } else {
+                        error!("Failed to fetch stats")
+                    }
+                } else {
+                    info!("Already in database")
+                }
+            }
+        }
+
+        return;
+    }
 
     let listener = TcpListener::bind("127.0.0.1:9977")
         .await
@@ -76,12 +169,6 @@ async fn main() {
     let shutdown_token = tokio_util::sync::CancellationToken::new();
     let pusher_shutdown = shutdown_token.clone(); // Handler for notifications-pusher
     let cloned_shutdown = shutdown_token.clone(); // Handler to share between main thread and sockets
-
-    let token_store: constants::TokenStorage = Arc::new(Mutex::new(HashMap::new()));
-    let galaxy_token = Token::new(access_token.clone(), refresh_token.clone());
-    let mut store_lock = token_store.lock().await;
-    store_lock.insert(String::from(constants::GALAXY_CLIENT_ID), galaxy_token);
-    drop(store_lock);
 
     let notifications_pusher_topic_sender = topic_sender.clone();
     let pusher_handle = tokio::spawn(async move {

@@ -36,8 +36,7 @@ pub async fn setup_connection(client_id: &str, user_id: &str) -> Result<SqlitePo
     SqlitePool::connect(&url).await
 }
 
-pub async fn has_statistics(context: &HandlerContext) -> bool {
-    let database = context.db_connection();
+pub async fn has_statistics(database: SqlitePool) -> bool {
     let connection = database.acquire().await;
     if connection.is_err() {
         return false;
@@ -135,8 +134,7 @@ pub async fn get_statistics(
     Ok(stats)
 }
 
-pub async fn set_statistics(context: &HandlerContext, stats: &Vec<Stat>) -> Result<(), Error> {
-    let database = context.db_connection();
+pub async fn set_statistics(database: SqlitePool, stats: &Vec<Stat>) -> Result<(), Error> {
     let mut connection = database.acquire().await?;
     let mut transaction = connection.begin().await?;
 
@@ -247,8 +245,7 @@ pub async fn set_stat_int(context: &HandlerContext, stat_id: i64, value: i32) ->
     Ok(())
 }
 
-pub async fn has_achievements(context: &HandlerContext) -> bool {
-    let database = context.db_connection();
+pub async fn has_achievements(database: SqlitePool) -> bool {
     let connection = database.acquire().await;
     if connection.is_err() {
         return false;
@@ -321,11 +318,10 @@ pub async fn get_achievements(
 }
 
 pub async fn set_achievements(
-    context: &HandlerContext,
+    database: SqlitePool,
     achievements: &Vec<Achievement>,
     mode: &str,
 ) -> Result<(), Error> {
-    let database = context.db_connection();
     let mut connection = database.acquire().await?;
     let mut transaction = connection.begin().await?;
 
