@@ -5,10 +5,10 @@ Open Source implementation of GOG Galaxy's Communication Service
 This project aims to implement calls made by game through SDK.  
 Note: that means it can't and won't replace Communication Service in official client
 
-This will provide minimal and platform agnostic SDK. For use in game launchers like Heroic or Lutris
+This will provide minimal and platform-agnostic SDK. For use in game launchers like Heroic or Lutris
 
 Project is continuation of Yepoleb's work [https://gitlab.com/Yepoleb/comet/](https://gitlab.com/Yepoleb/comet/) but in
-Python
+~~Python~~ [now in Rust](https://github.com/imLinguin/comet/issues/15)
 
 ## Supported Requests
 
@@ -18,44 +18,27 @@ Excluding Overlay, and Cloud Sync related.
 - [x] GET_USER_STATS_REQUEST
 - [x] SUBSCRIBE_TOPIC_REQUEST
 - [x] UPDATE_USER_STAT_REQUEST
-- [x] DELETE_USER_STATS_REQUEST
+- [ ] DELETE_USER_STATS_REQUEST
 - [ ] GET_GLOBAL_STATS_REQUEST
 - [x] GET_USER_ACHIEVEMENTS_REQUEST
 - [x] UNLOCK_USER_ACHIEVEMENT_REQUEST
 - [x] CLEAR_USER_ACHIEVEMENT_REQUEST
-- [x] DELETE_USER_ACHIEVEMENTS_REQUEST
+- [ ] DELETE_USER_ACHIEVEMENTS_REQUEST
 - [x] GET_LEADERBOARDS_REQUEST
 - [x] GET_LEADERBOARD_ENTRIES_GLOBAL_REQUEST
 - [x] GET_LEADERBOARD_ENTRIES_AROUND_USER_REQUEST
-- [ ] GET_LEADERBOARD_ENTRIES_FOR_USERS_REQUEST
+- [x] GET_LEADERBOARD_ENTRIES_FOR_USERS_REQUEST
 - [ ] SET_LEADERBOARD_SCORE_REQUEST
 - [ ] AUTH_STATE_CHANGE_NOTIFICATION
-- [ ] GET_LEADERBOARDS_BY_KEY_REQUEST
+- [x] GET_LEADERBOARDS_BY_KEY_REQUEST
 - [ ] CREATE_LEADERBOARD_REQUEST
-- [ ] GET_USER_TIME_PLAYED_REQUEST
-- [ ] SHARE_FILE_REQUEST
-- [ ] START_GAME_SESSION_REQUEST
 - [ ] OVERLAY_STATE_CHANGE_NOTIFICATION
-- [ ] CONFIGURE_ENVIRONMENT_REQUEST
-
-## Experimental support
-
-Following requests are supported experimentally (they haven't been tested well)
-
-- UPDATE_USER_STAT_REQUEST - no testing
-- UNLOCK_USER_ACHIEVEMENT_REQUEST - able to avoid unlocking the achievement again (unsure about response status code)
 
 ## How to use
 
 Currently service supports small amount of calls, but these are enough to play Gwent for example.
 
-### Installation
-
-You can install the most up-to-date version via pip:
-
-``` sh
-pip install git+https://github.com/imLinguin/comet.git
-```
+Check [running](#running)
 
 ### Authentication
 
@@ -63,7 +46,11 @@ You need to obtain `access_token`, `refresh_token` and `user_id` either manually
 
 #### Via [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher)
 
-Log in to GOG within the launcher. Make sure to launch it before running Comet to ensure the credentials are refreshed.
+Log in to GOG within the launcher.
+
+#### Via [Lutris](https://github.com/lutris/lutris)
+
+Log in to Lutris's GOG source.
 
 #### Via [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl) (CLI)
 
@@ -86,13 +73,20 @@ https://login.gog.com/auth?client_id=46899977096215655&layout=galaxy&redirect_ur
 ### Running
 
 ```
-comet --token "<access_token>" --refresh_token "<refresh_token>" --user-id <user_id>
+<<<<<<< HEAD
+comet --token "<access_token>" --refresh_token "<refresh_token>" --user-id <user_id> --username <USERNAME>
 ```
 
 Or if you are using Heroic/gogdl
 
 ```
-comet --from-heroic
+<<<<<<< HEAD
+comet --from-heroic --username <USERNAME>
+```
+
+Or Lutris
+```
+comet --from-lutris --username <USERNAME>
 ```
 
 ## Contributing
@@ -104,3 +98,9 @@ special [thread](https://discord.com/channels/812703221789097985/107404884095874
 environment for tracing the Communication Service calls (involving Proxifier and custom mitmproxy)
 
 Reverse engineered protobuf definitions are available here: https://github.com/Yepoleb/gog_protocols
+
+## Sponsoring
+
+If you want to contribute financially you can do so via my [Ko-Fi](https://ko-fi.com/imlinguin).  
+You can also use any of the options to [support Heroic](https://heroicgameslauncher.com/donate)
+
