@@ -30,7 +30,6 @@ rustls-pemfile = "2.1.1"
 protobuf-codegen = "3.4.0"
 protoc-bin-vendored = "3.0.0"
 
-
 [profile.release]
 strip = true
 
