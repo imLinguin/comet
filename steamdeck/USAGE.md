@@ -4,6 +4,12 @@ Using Comet with Valve's Steam Deck (running SteamOS) is possible in both Deskto
 
 Using `comet_shortcut.sh` will simplify the process of launching Heroic Games Launcher generated non-Steam game shortcuts with Comet in the background. That script works in both Modes.
 
+## How to Use
+1. Install Comet and its shortcut script. (See the installation steps below.)
+2. Change the Heroic shortcuts on Steam to include a reference to the shortcut script.
+3. Launch the game through either Desktop or Game Mode!
+4. **When stopping your game**: close the game by using the Steam button to get to the overlay, selecting the window of your running game and close it with the X button. **Directly exiting the game through Steam will not sync your GOG playtime via Heroic!** After the game's closed through the mentioned "close window" method, you can simply close the remaining Comet window through the same manner or by selecting the "Exit game" option through Steam itself.
+
 ## Known Issues
 
 - **Not all GOG achievement games are supported** - some games (e.g. [Cuphead](https://www.gog.com/en/game/cuphead)) do not support the way Comet currently works. Your milage may vary in game support. See (and contribute!) to the Compatibility Chart seen in Comet's wiki.
