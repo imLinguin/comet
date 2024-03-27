@@ -429,6 +429,11 @@ async fn unlock_user_achievement(
         .expect("Failed to read database");
 
     if achievement.date_unlocked().is_none() {
+        info!(
+            "Unlocking achievement {}, {}",
+            achievement.achievement_key(),
+            achievement.name()
+        );
         db::gameplay::set_achievement(context, ach_id, timestamp_string.clone())
             .await
             .expect("Failed to write achievement to database");
@@ -561,7 +566,7 @@ async fn get_leaderboard_entries_for_users(
     let user_ids: String = request
         .user_ids
         .iter()
-        .map(|id| (id << 8 >> 8).to_string())
+        .map(|id| IDType::parse(*id).inner().to_string())
         .collect::<Vec<String>>()
         .join(",");
 

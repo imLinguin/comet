@@ -50,7 +50,7 @@ pub mod structs {
             match flag {
                 1 => Self::Lobby(new_value),
                 2 => Self::User(new_value),
-                _ => IDType::Unassigned(new_value),
+                _ => Self::Unassigned(new_value),
             }
         }
         /// Return entity id with magic flag
