@@ -87,6 +87,8 @@ Or Lutris
 comet --from-lutris --username <USERNAME>
 ```
 
+Or use the shortcut script provided for non-Steam shortcuts. See [the installation instructions](steamdeck/USAGE.md). This is useful for Steam Deck users.
+
 ## Contributing
 
 Join [Heroic Discord](https://discord.gg/rHJ2uqdquK) and reach out to us on
