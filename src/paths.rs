@@ -19,6 +19,12 @@ lazy_static! {
     static ref DATA_PATH: PathBuf = PathBuf::from(env::var("LOCALAPPDATA").unwrap()).join("comet");
 }
 
+#[cfg(target_os = "macos")]
+lazy_static! {
+    static ref DATA_PATH: PathBuf =
+        PathBuf::from(env::var("HOME").unwrap()).join("Library/Application Support");
+}
+
 lazy_static! {
     pub static ref GAMEPLAY_STORAGE: PathBuf = DATA_PATH.join("gameplay");
 }

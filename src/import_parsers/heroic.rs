@@ -40,7 +40,12 @@ fn get_config_path() -> Option<path::PathBuf> {
     Some(appdata.join("heroic/gog_store/auth.json"))
 }
 
-// TODO: Support Mac
+#[cfg(target_os = "macos")]
+fn get_config_path() -> Option<path::PathBuf> {
+    let app_support = env::var("HOME").unwrap();
+    let app_support = path::Path::new(&app_support).join("Library/Application Support");
+    Some(app_support.join("heroic/gog_store/auth.json"))
+}
 
 pub fn load_tokens() -> HeroicAuthConfig {
     let config_path = get_config_path().expect("No heroic's auth.json found");
