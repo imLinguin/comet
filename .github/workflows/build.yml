@@ -36,4 +36,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: comet-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/comet
+          path: target/${{ matrix.target }}/release/${{ contains(matrix.target, 'pc-windows') && 'comet.exe' || 'comet' }}
