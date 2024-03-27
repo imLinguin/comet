@@ -9,12 +9,22 @@ jobs:
   build:
     strategy:
       matrix:
-        target: [aarch64-unknown-linux-gnu, x86_64-unknown-linux-gnu, x86_64-apple-darwin, aarch64-apple-darwin]
-    runs-on: ubuntu-latest
+        target:
+          [
+            aarch64-unknown-linux-gnu,
+            x86_64-unknown-linux-gnu,
+            x86_64-apple-darwin,
+            aarch64-apple-darwin,
+            x86_64-pc-windows-msvc,
+            aarch64-pc-windows-msvc,
+          ]
+    runs-on: ${{ (contains(matrix.target, 'apple-darwin') && 'macos-latest') ||
+      (contains(matrix.target, 'linux-gnu') && 'ubuntu-latest') ||
+      (contains(matrix.target, 'pc-windows') && 'windows-latest') }}
     steps:
       - uses: actions/checkout@v4
         with:
-          submodules: 'recursive'
+          submodules: "recursive"
       - if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
         name: Install arm gcc
         run: sudo apt install gcc-aarch64-linux-gnu
