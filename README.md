@@ -40,6 +40,8 @@ Currently service supports small amount of calls, but these are enough to play G
 
 Check [running](#running)
 
+Some client SDK versions require Windows service to be registered, refer to [dummy service](./dummy-service/README.md)
+
 ### Authentication
 
 You need to obtain `access_token`, `refresh_token` and `user_id` either manually, or by importing them:
@@ -96,6 +98,15 @@ special [thread](https://discord.com/channels/812703221789097985/107404884095874
 environment for tracing the Communication Service calls (involving Proxifier and custom mitmproxy)
 
 Reverse engineered protobuf definitions are available here: https://github.com/Yepoleb/gog_protocols
+
+## Debugging SDK Client
+
+In order to dump logging from SDK client download [GalaxyPeer.ini](https://items.gog.com/GalaxyPeer.zip),
+when placed next to game .exe it will write GalaxyPeer.log when the game is running.
+
+> [!WARNING]  
+> Proceed with caution, the log may contain sensitive information,
+> make sure to remove such data before sharing the file with others.
 
 ## Sponsoring
 

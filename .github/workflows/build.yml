@@ -6,6 +6,17 @@ on:
       - main
 
 jobs:
+  build-dummy:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the dummy
+        working-directory: dummy-service
+        run: gcc -o GalaxyCommunication.exe main.c -ladvapi32
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dummy-GalaxyCommunication.exe
+          path: dummy-service/GalaxyCommunication.exe
   build:
     strategy:
       matrix:
