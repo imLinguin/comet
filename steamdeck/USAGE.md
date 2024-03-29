@@ -1,6 +1,6 @@
 # Using with the Steam Deck
 
-Using Comet with Valve's Steam Deck (running SteamOS) is possible in both Desktop and Game Mode. Comet will only function with games that do support [GOG Galaxy's achievement system](https://www.gog.com/en/games?features=achievements).
+Using Comet with Valve's Steam Deck (running SteamOS) is possible in both Desktop and Game Mode. Comet will only function with games that do support [GOG Galaxy's achievement system](https://www.gog.com/en/games?features=achievements). **If your game does not work out of the box, check Known Issues below.**
 
 Using `comet_shortcut.sh` will simplify the process of launching Heroic Games Launcher generated non-Steam game shortcuts with Comet in the background. That script works in both Modes.
 
@@ -12,7 +12,18 @@ Using `comet_shortcut.sh` will simplify the process of launching Heroic Games La
 
 ## Known Issues
 
-- **Not all GOG achievement games are supported** - some games (e.g. [Cuphead](https://www.gog.com/en/game/cuphead)) do not support the way Comet currently works. Your milage may vary in game support. See (and contribute!) to the Compatibility Chart seen in Comet's wiki.
+- **Not all GOG achievement games are supported** - some games (e.g. [Cuphead](https://www.gog.com/en/game/cuphead)) do not support the way Comet currently works on its own, due to an outdated SDK used for GOG Galaxy features. 
+  
+  **To solve it**: you will need to install the `GalaxyCommunications` dummy application. (For Steam Deck users, the necessary files (the `.bat` script and the `pfx` folder) have been included in the Linux artifact.)
+
+  1. Grab the GalaxyCommunication dummy artifact from the latest GitHub Actions run.
+  2. Extract the files to any place, for easy copy-pasting.
+  3. Go to Heroic, to the malfunctioning game's settings screen.
+  4. Using the file explorer (Dolphin), go to the game's WinePrefix folder, mentioned in the WINE tab on the Heroic game's settings page.
+  5. Copy the `pfx` folder of the Galaxy Communications artifact/`.zip` file to it. Accept "writing into the directory". (This will place the GalaxyCommunications dummy program in the correct place for you.)
+  6. Scroll down the WINE tab of the game's settings screen until you see `RUN EXE ON PREFIX`.
+  7. Drag and drop the `comet-dummy-service.bat` onto `RUN EXE ON PREFIX` to install the dummy service for the game to detect.
+  8. Play the game as you would expect. It should now function with Comet's features!
 
 ## Installation steps
 

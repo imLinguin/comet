@@ -20,6 +20,8 @@ In case of Wine/Proton make sure to run the command above in the context of your
 
 > [!TIP]  
 > For Wine/Proton you can place the GalaxyCommunication.exe in C:\\windows\\system32, then binpath may be set to executable name
+>
+> If using Heroic, use the `comet-dummy-service.bat` file and run it in the game's prefix by dragging the file over `RUN EXE ON PREFIX` in the game's settings page under the WINE tab. (The `.bat` file will install the service with the dummy placed under `C:\\ProgramData\\GOG.com\\Galaxy\\redists\\GalaxyCommunication.exe`.)
 
 ## Building
 

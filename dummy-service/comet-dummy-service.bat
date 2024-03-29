@@ -1,0 +1,1 @@
+sc create GalaxyCommunication binpath=C:\\ProgramData\\GOG.com\\Galaxy\\redists\\GalaxyCommunication.exe
