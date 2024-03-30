@@ -66,6 +66,8 @@ jobs:
             target/${{ matrix.target }}/release/pfx
 
   download-artifact-test:
+    name: Download Artifact test
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
