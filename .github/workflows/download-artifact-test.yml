@@ -11,7 +11,7 @@ jobs:
       matrix:
         target:
           [
-            x86_64-unknown-linux-gnu,,
+            x86_64-unknown-linux-gnu
           ]
     runs-on: ${{ (contains(matrix.target, 'apple-darwin') && 'macos-latest') ||
       (contains(matrix.target, 'linux-gnu') && 'ubuntu-latest') ||
