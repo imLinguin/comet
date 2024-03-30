@@ -6,7 +6,7 @@ This is the service that gets woken up by game process when Galaxy is not runnin
 
 ## Usage
 > [!TIP]
-> For easy installation, have `GalaxyCommunication.exe` and `comet-dummy-service.bat` both in a folder Heroic has access to and run the script.
+> For easy installation, have `GalaxyCommunication.exe` and `install-dummy-service.bat` both in a folder Heroic has access to and run the script.
 >
 > For Heroic Games Launcher users on Linux: run the `.bat` file by dragging it into the `RUN EXE ON PREFIX` box of the game's WINE settings (in Heroic).
 
@@ -26,7 +26,7 @@ In case of Wine/Proton make sure to run the command above in the context of your
 > [!TIP]  
 > For Wine/Proton you can place the GalaxyCommunication.exe in C:\\windows\\system32, then binpath may be set to executable name
 >
-> If using Heroic, use the `comet-dummy-service.bat` file and run it in the game's prefix by dragging the file over `RUN EXE ON PREFIX` in the game's settings page under the WINE tab. (The `.bat` file will install the service with the dummy placed under `C:\ProgramData\GOG.com\Galaxy\redists\GalaxyCommunication.exe`.)
+> If using Heroic, use the `install-dummy-service.bat` file and run it in the game's prefix by dragging the file over `RUN EXE ON PREFIX` in the game's settings page under the WINE tab. (The `.bat` file will install the service with the dummy placed under `C:\ProgramData\GOG.com\Galaxy\redists\GalaxyCommunication.exe`.)
 
 ## Building
 

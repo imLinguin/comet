@@ -22,7 +22,7 @@ Using `comet_shortcut.sh` will simplify the process of launching Heroic Games La
   4. Using the file explorer (Dolphin), go to the game's WinePrefix folder, mentioned in the WINE tab on the Heroic game's settings page.
   5. Copy the `pfx` folder of the Galaxy Communications artifact/`.zip` file to it. Accept "writing into the directory". (This will place the GalaxyCommunications dummy program in the correct place for you.)
   6. Scroll down the WINE tab of the game's settings screen until you see `RUN EXE ON PREFIX`.
-  7. Drag and drop the `comet-dummy-service.bat` onto `RUN EXE ON PREFIX` to install the dummy service for the game to detect.
+  7. Drag and drop the `install-dummy-service.bat` onto `RUN EXE ON PREFIX` to install the dummy service for the game to detect.
   8. Play the game as you would expect. It should now function with Comet's features!
 
 ## Installation steps

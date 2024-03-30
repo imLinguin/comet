@@ -48,22 +48,8 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dummy-GalaxyCommunication.exe
-          path: $GITHUB_WORKSPACE/steamdeck/dummy-service-folder-structure/pfx/drive_c/ProgramData/GOG.com/redists
-      - if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
-        name: Unpacking dummy service
-        run: | 
-          unzip -j $GITHUB_WORKSPACE/steamdeck/dummy-service-folder-structure/pfx/drive_c/ProgramData/GOG.com/redists/dummy-GalaxyCommunications.exe.zip -d $GITHUB_WORKSPACE/steamdeck/dummy-service-folder-structure/pfx/drive_c/ProgramData/GOG.com/redists
-          rm $GITHUB_WORKSPACE/steamdeck/dummy-service-folder-structure/pfx/drive_c/ProgramData/GOG.com/redists/dummy-GalaxyCommunications.exe.zip
-          rm $GITHUB_WORKSPACE/steamdeck/dummy-service-folder-structure/pfx/drive_c/ProgramData/GOG.com/redists/GalaxyCommunications_here
+          path: dummy-service
         
-      - if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
-        name: Add Steam Deck shortcut & service files
-        run: | 
-          cp $GITHUB_WORKSPACE/steamdeck/comet_shortcut.sh target/${{ matrix.target }}/release/comet_shortcut.sh
-          cp $GITHUB_WORKSPACE/steamdeck/USAGE.md target/${{ matrix.target }}/release/USAGE.md
-          cp -R $GITHUB_WORKSPACE/steamdeck/dummy-service-folder-structure/pfx target/${{ matrix.target }}/release/pfx
-          cp $GITHUB_WORKSPACE/dummy-service/comet-dummy-service.bat target/${{ matrix.target }}/release/comet-dummy-service.bat
-
       - if: ${{ ! matrix.target == 'x86_64-unknown-linux-gnu' }}
         uses: actions/upload-artifact@v4
         with:
@@ -76,7 +62,8 @@ jobs:
           name: comet-${{ matrix.target }}
           path: | 
             target/${{ matrix.target }}/release/comet
-            target/${{ matrix.target }}/release/comet_shortcut.sh
-            target/${{ matrix.target }}/release/USAGE.md
-            target/${{ matrix.target }}/release/comet-dummy-service.bat
-            target/${{ matrix.target }}/release/pfx
+            steamdeck/USAGE.md
+            steamdeck/comet_shortcut.sh
+            dummy-service/dummy-GalaxyCommunication.exe
+            dummy-service/install-dummy-service.bat
+
