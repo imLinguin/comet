@@ -12,7 +12,7 @@
 
 gog_username=username
 # Full filepath to comet binary - for microSD cards, look into the /run/media/deck/ directory for specific microSD card folders
-path_to_comet='/home/deck/comet'
+path_to_comet='/home/deck/Documents/comet/comet'
 # Uncomment if debug logs are wanted to be visible in Comet
 #export COMET_LOG=debug
 
