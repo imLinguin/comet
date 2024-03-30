@@ -14,16 +14,13 @@ Using `comet_shortcut.sh` will simplify the process of launching Heroic Games La
 
 - **Not all GOG achievement games are supported** - some games (e.g. [Cuphead](https://www.gog.com/en/game/cuphead)) do not support the way Comet currently works on its own, due to an outdated SDK used for GOG Galaxy features. 
   
-  **To solve it**: you will need to install the `GalaxyCommunications` dummy application. (For Steam Deck users, the necessary files (the `.bat` script and the `pfx` folder) have been included in the Linux artifact.)
+  **To solve it**: you will need to install the `GalaxyCommunications` dummy application. (For Steam Deck users, the necessary files (the `.bat` script and the dummy `.exe`) have been included in the Linux artifact.)
 
-  1. Grab the GalaxyCommunication dummy artifact from the latest GitHub Actions run.
-  2. Extract the files to any place, for easy copy-pasting.
-  3. Go to Heroic, to the malfunctioning game's settings screen.
-  4. Using the file explorer (Dolphin), go to the game's WinePrefix folder, mentioned in the WINE tab on the Heroic game's settings page.
-  5. Copy the `pfx` folder of the Galaxy Communications artifact/`.zip` file to it. Accept "writing into the directory". (This will place the GalaxyCommunications dummy program in the correct place for you.)
-  6. Scroll down the WINE tab of the game's settings screen until you see `RUN EXE ON PREFIX`.
-  7. Drag and drop the `install-dummy-service.bat` onto `RUN EXE ON PREFIX` to install the dummy service for the game to detect.
-  8. Play the game as you would expect. It should now function with Comet's features!
+  1. Keep the `comet` Linux artifact items in a directory Heroic has access to, such as `~/Documents` or `~/Desktop`.
+  2. Go to Heroic Games Launcher, to the malfunctioning game's settings screen..
+  3. Scroll down the WINE tab of the game's settings screen until you see `RUN EXE ON PREFIX`.
+  4. Drag and drop the `install-dummy-service.bat` onto `RUN EXE ON PREFIX` to install the dummy service for the game to detect.
+  5. Play the game as you would expect. It should now function with Comet's features!
 
 ## Installation steps
 
