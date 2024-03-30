@@ -27,18 +27,15 @@ Using `comet_shortcut.sh` will simplify the process of launching Heroic Games La
 1. Make sure you are logged into GOG on Heroic Games Launcher.
 2. Download the latest release of Comet from [the latest GitHub Actions run](https://github.com/imLinguin/comet/actions) labelled `comet-x86_64-unknown-linux-gnu`.
 3. Extract the downloaded `.zip` archive to a desired place.
-   > It is recommended to have the `comet` binary put into the `/home/deck/` directory, as that is the default file path in the script. You are free to change it to a different install location, however. This does include on external storage such as a microSD card inserted in the Steam Deck.
-4. Download `comet_shortcut.sh` from the GitHub repository. (Click on the file, then on the icon with the arrow pointing downwards into the bracket.)
-5. Put the `comet_shortcut.sh` file in any location.
-   > It is recommended to put it in the same directory as the `comet` binary.
+   > It is recommended to have the `comet` binary put into the `~/Documents` directory. Otherwise: choose any directory where Heroic has access to.
 6. Mark both `comet_shortcut.sh` and `comet` as `is Executable`. (Right click on the file > Properties > Permissions tab > click on the `Is executable` checkbox.)
 7. Use Heroic Games Launcher to create non-Steam game shortcuts of any of your GOG games to use with Comet.
 8. Restart Steam to have the newly created shortcuts show up.
 9. For each Heroic Games Launcher shortcut:
     - Move the current launch options (`run com.heroicgameslauncher.hgl ...`) into the target field, next to `flatpak`.
     - Put the following in the launch options field:
-    `"/home/deck/comet_shortcut.sh" %ccommand%`
-        > If you put the `comet_shortcut.sh` file in a different location: replace `/home/deck/comet_shortcut.sh` with the full file path of `comet_shortcut.sh`.
+    `"<file path of comet_shortcut.sh>" %command%`
+        > Replace what's between `< >` with the full file path (e.g. `~/Documents/comet/comet_shortcut.sh`)
 10. Open the `comet_shortcut.sh` file with Kate (right click on the file > Open with Kate), and edit the following values:
     - `gog_username`
         > Change the `username` value after `=` to your GOG username
