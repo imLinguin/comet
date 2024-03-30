@@ -50,13 +50,9 @@ jobs:
             target/${{ matrix.target }}/release/comet_shortcut.sh
             target/${{ matrix.target }}/release/USAGE.md
             target/${{ matrix.target }}/release/comet-dummy-service.bat
-            
-  download-artifact-test:
-    name: Download Artifact test
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/download-artifact@v4
+      
+      - name: Download Artifact test
+        uses: actions/download-artifact@v4
         with: 
           name: comet-x86_64-unknown-linux-gnu
           path: $GITHUB_WORKSPACE/test/
@@ -65,4 +61,3 @@ jobs:
           cd $GITHUB_WORKSPACE/test
           ls
           $GITHUB_WORKSPACE/test/comet-x86_64-unknown-linux-gnu.zip -l
-      
