@@ -55,6 +55,5 @@ jobs:
         uses: actions/download-artifact@v4
         with: 
           name: comet-x86_64-unknown-linux-gnu
-          path: $GITHUB_WORKSPACE/test
       - name: Check folder
-        run: ls -R $GITHUB_WORKSPACE/test
+        run: ls -R
