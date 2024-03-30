@@ -11,6 +11,86 @@ jobs:
       matrix:
         target:
           [
+            x86_64-unknown-linux-gnu
+          ]
+    runs-on: ${{ (contains(matrix.target, 'apple-darwin') && 'macos-latest') ||
+      (contains(matrix.target, 'linux-gnu') && 'ubuntu-latest') ||
+      (contains(matrix.target, 'pc-windows') && 'windows-latest') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+      - if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
+        name: Install arm gcc
+        run: sudo apt install gcc-aarch64-linux-gnu
+      - name: Setup target
+        run: rustup target add ${{ matrix.target }}
+      - name: Build
+        run: cargo build --verbose --release --target ${{ matrix.target }}
+      - if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
+        name: Downloading dummy service for packaging
+        uses: actions/download-artifact@v4
+        with:
+          name: dummy-GalaxyCommunication.exe
+          path: $GITHUB_WORKSPACE/steamdeck/dummy-service-folder-structure/pfx/drive_c/ProgramData/GOG.com/redists
+      - if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
+        name: Unpacking dummy service
+        run: | 
+          unzip -j $GITHUB_WORKSPACE/steamdeck/dummy-service-folder-structure/pfx/drive_c/ProgramData/GOG.com/redists/dummy-GalaxyCommunications.exe.zip -d $GITHUB_WORKSPACE/steamdeck/dummy-service-folder-structure/pfx/drive_c/ProgramData/GOG.com/redists
+          rm $GITHUB_WORKSPACE/steamdeck/dummy-service-folder-structure/pfx/drive_c/ProgramData/GOG.com/redists/dummy-GalaxyCommunications.exe.zip
+          rm $GITHUB_WORKSPACE/steamdeck/dummy-service-folder-structure/pfx/drive_c/ProgramData/GOG.com/redists/GalaxyCommunications_here
+        
+      - if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
+        name: Add Steam Deck shortcut & service files
+        run: | 
+          cp $GITHUB_WORKSPACE/steamdeck/comet_shortcut.sh target/${{ matrix.target }}/release/comet_shortcut.sh
+          cp $GITHUB_WORKSPACE/steamdeck/USAGE.md target/${{ matrix.target }}/release/USAGE.md
+          cp -R $GITHUB_WORKSPACE/steamdeck/dummy-service-folder-structure/pfx target/${{ matrix.target }}/release/pfx
+          cp $GITHUB_WORKSPACE/dummy-service/comet-dummy-service.bat target/${{ matrix.target }}/release/comet-dummy-service.bat
+
+      - if: ${{ ! matrix.target == 'x86_64-unknown-linux-gnu' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: comet-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/${{ contains(matrix.target, 'pc-windows') && 'comet.exe' || 'comet' }}
+      
+      - if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: comet-${{ matrix.target }}
+          path: | 
+            target/${{ matrix.target }}/release/comet
+            target/${{ matrix.target }}/release/comet_shortcut.sh
+            target/${{ matrix.target }}/release/USAGE.md
+            target/${{ matrix.target }}/release/comet-dummy-service.bat
+            target/${{ matrix.target }}/release/pfx
+
+    download-artifact-test:
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/download-artifact@v4
+          with: 
+            name: comet-x86_64-unknown-linux-gnu
+            path: $GITHUB_WORKSPACE/test/
+        - name: Check folder
+          run: |
+            cd $GITHUB_WORKSPACE/test
+            ls
+            $GITHUB_WORKSPACE/test/comet-x86_64-unknown-linux-gnu.zip -l
+      
+name: Build on push
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        target:
+          [
             x86_64-unknown-linux-gnu,
           ]
     runs-on: ${{ (contains(matrix.target, 'apple-darwin') && 'macos-latest') ||
