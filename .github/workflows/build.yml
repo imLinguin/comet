@@ -32,6 +32,7 @@ jobs:
     runs-on: ${{ (contains(matrix.target, 'apple-darwin') && 'macos-latest') ||
       (contains(matrix.target, 'linux-gnu') && 'ubuntu-latest') ||
       (contains(matrix.target, 'pc-windows') && 'windows-latest') }}
+    needs: build-dummy
     steps:
       - uses: actions/checkout@v4
         with:
@@ -43,27 +44,19 @@ jobs:
         run: rustup target add ${{ matrix.target }}
       - name: Build
         run: cargo build --verbose --release --target ${{ matrix.target }}
-      - if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
-        name: Downloading dummy service for packaging
+      - name: Downloading dummy service for packaging
         uses: actions/download-artifact@v4
         with:
           name: dummy-GalaxyCommunication.exe
           path: dummy-service
-        
-      - if: ${{ ! matrix.target == 'x86_64-unknown-linux-gnu' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: comet-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/${{ contains(matrix.target, 'pc-windows') && 'comet.exe' || 'comet' }}
-      
-      - if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: comet-${{ matrix.target }}
-          path: | 
-            target/${{ matrix.target }}/release/comet
-            steamdeck/USAGE.md
-            steamdeck/comet_shortcut.sh
-            dummy-service/dummy-GalaxyCommunication.exe
-            dummy-service/install-dummy-service.bat
 
+      - name: Generic packaging
+        uses: actions/upload-artifact@v4
+        with:
+          name: comet-${{ matrix.target }}
+          path: |
+            target/${{ matrix.target }}/release/comet*
+            !target/${{ matrix.target }}/release/comet.d
+            dummy-service/
+            !dummy-service/*.c
+            ${{ contains(matrix.target, 'linux-gnu') && 'docs/steamdeck' }}
