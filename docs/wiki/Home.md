@@ -3,8 +3,10 @@
 Welcome to the Wiki of the Comet project! Here you will find some documentation about the project, mainly aimed at the end users.
 
 ## Important pages
-[Game Compatibility Table](Game-Compatibility.md)
-[Steam Deck Usage](steamdeck/Usage.md)
+
+[Game Compatibility Table](Game-Compatibility)
+
+[Steam Deck Usage](Usage)
 
 ## Contribute
 
