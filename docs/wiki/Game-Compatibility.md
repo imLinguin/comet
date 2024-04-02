@@ -4,7 +4,7 @@ As this is a work-in-progress replacement, not all GOG Galaxy feature enabled ga
 
 ## Contribute
 
-To contribute, follow the Contribution Guidelines mentioned in the [Home Page of the Wiki](Home.md) and follow the following steps:
+To contribute, follow the Contribution Guidelines mentioned in the [Home Page of the Wiki](Home) and follow the following steps:
 
 <details>
 <summary>Steps</summary>
