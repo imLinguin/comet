@@ -12,7 +12,7 @@ Using `comet_shortcut.sh` will simplify the process of launching Heroic Games La
 
 ## Known Issues
 
-- **Not all GOG achievement games are supported** - some games (e.g. [Cuphead](https://www.gog.com/en/game/cuphead)) do not support the way Comet currently works on its own, due to an outdated SDK used for GOG Galaxy features. 
+- **Not all GOG achievement games are supported** - some games (e.g. [Cuphead](https://www.gog.com/game/cuphead)) do not support the way Comet currently works on its own, due to an outdated SDK used for GOG Galaxy features. 
   
   **To solve it**: you will need to install the `GalaxyCommunications` dummy application. (For Steam Deck users, the necessary files (the `.bat` script and the dummy `.exe`) have been included in the Linux artifact.)
 
