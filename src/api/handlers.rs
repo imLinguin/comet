@@ -199,12 +199,13 @@ async fn sync_routine(
     drop(token_store);
     let updated_achievements = *context.updated_achievements();
     let updated_stats = *context.updated_stats();
+    let updated_leaderboards = *context.updated_leaderboards();
     // Is there anything to update?
-    if !(updated_achievements || updated_stats) {
+    if !(updated_achievements || updated_stats || updated_leaderboards) {
         return;
     }
 
-    if *context.updated_achievements() {
+    if updated_achievements {
         // Sync achievements
         info!("Uploading new achievements");
         let changed_achievements = db::gameplay::get_achievements(context, true).await;
@@ -239,13 +240,13 @@ async fn sync_routine(
                 }
                 transaction.commit().await.expect("Failed to save changes");
                 context.set_updated_achievements(false);
+                info!("Uploaded achievements");
             }
             Err(err) => error!("Failed to read local database {:?}", err),
         }
-        info!("Uploaded");
     }
 
-    if *context.updated_stats() {
+    if updated_stats {
         // Sync stats
         info!("Uploading new stats");
         let changed_statistics = db::gameplay::get_statistics(context, true).await;
@@ -283,6 +284,78 @@ async fn sync_routine(
                 }
                 transaction.commit().await.expect("Failed to save changes");
                 context.set_updated_stats(false);
+                info!("Uploaded stats");
+            }
+            Err(err) => error!("Failed to read local database {:?}", err),
+        }
+    }
+
+    if updated_leaderboards {
+        info!("Syncing leaderboards");
+
+        let changed_leaderboards = db::gameplay::get_leaderboards_score_changed(context).await;
+
+        match changed_leaderboards {
+            Ok(entries) => {
+                let mut connection = context
+                    .db_connection()
+                    .acquire()
+                    .await
+                    .expect("Failed to get database connection");
+                let mut transaction = connection
+                    .begin()
+                    .await
+                    .expect("Failed to start transaction");
+
+                for (id, score, _rank, _entry_total_count, force, details) in entries {
+                    let details = if details.is_empty() {
+                        None
+                    } else {
+                        Some(details)
+                    };
+                    let result = gog::leaderboards::post_leaderboard_score(
+                        context,
+                        reqwest_client,
+                        &user_info.galaxy_user_id,
+                        id,
+                        score,
+                        force,
+                        details,
+                    )
+                    .await;
+
+                    match result {
+                        Ok(res) => {
+                            sqlx::query("UPDATE leaderboard SET changed=0,entry_total_count=$2,rank=$3 WHERE id=$1")
+                            .bind(id)
+                            .bind(res.leaderboard_entry_total_count)
+                            .bind(res.new_rank)
+                            .execute(&mut *transaction)
+                            .await
+                            .expect("Failed to update leaderboard state");
+                        }
+                        Err(err) => {
+                            if let Some(status) = err.status() {
+                                if status.as_u16() == 409 {
+                                    warn!("Leaderboard conflict for {}", id);
+                                    sqlx::query(
+                                        "UPDATE leaderboard SET changed=0, score=$2 WHERE id=$1",
+                                    )
+                                    .bind(id)
+                                    .bind(score)
+                                    .execute(&mut *transaction)
+                                    .await
+                                    .expect("Failed to set new score locally");
+                                }
+                            }
+                            warn!("More details {}", err);
+                        }
+                    }
+                }
+
+                transaction.commit().await.expect("Failed to save changes");
+                info!("Leaderboards synced");
+                context.set_updated_leaderboards(false);
             }
             Err(err) => error!("Failed to read local database {:?}", err),
         }

@@ -17,6 +17,7 @@ pub struct HandlerContext {
     client_secret: Option<String>,
     updated_achievements: bool,
     updated_stats: bool,
+    updated_leaderboards: bool,
 }
 
 impl HandlerContext {
@@ -30,8 +31,9 @@ impl HandlerContext {
             client_identified: false,
             client_id: None,
             client_secret: None,
-            updated_achievements: false,
-            updated_stats: false,
+            updated_achievements: true,
+            updated_stats: true,
+            updated_leaderboards: true,
         }
     }
 
@@ -58,6 +60,9 @@ impl HandlerContext {
     }
     pub fn set_updated_stats(&mut self, value: bool) {
         self.updated_stats = value
+    }
+    pub fn set_updated_leaderboards(&mut self, value: bool) {
+        self.updated_leaderboards = value
     }
 
     pub async fn setup_database(

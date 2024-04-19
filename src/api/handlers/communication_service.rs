@@ -4,7 +4,7 @@ use crate::api::handlers::context::HandlerContext;
 use crate::api::structs::{DataSource, IDType, UserInfo};
 use crate::db::gameplay::{set_stat_float, set_stat_int};
 use crate::{constants, db};
-use chrono::{Local, TimeZone, Utc};
+use chrono::{TimeZone, Utc};
 use log::{debug, info, warn};
 use protobuf::{Enum, Message};
 use reqwest::{Client, StatusCode};
@@ -55,6 +55,8 @@ pub async fn entry_point(
         get_leaderboard_entries_around_user(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_LEADERBOARD_ENTRIES_FOR_USERS_REQUEST.value() {
         get_leaderboard_entries_for_users(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::SET_LEADERBOARD_SCORE_REQUEST.value() {
+        set_leaderboard_score(payload, context, user_info, reqwest_client).await
     } else {
         warn!(
             "Unhandled communication service message type {}",
@@ -419,8 +421,8 @@ async fn unlock_user_achievement(
 
     let ach_id: i64 = request_data.achievement_id().try_into().unwrap();
     let timestamp = request_data.time();
-    let dt = Local.timestamp_opt(timestamp.into(), 0).unwrap();
-    let timestamp_string = Some(dt.to_utc().to_rfc3339());
+    let dt = Utc.timestamp_opt(timestamp.into(), 0).unwrap();
+    let timestamp_string = Some(dt.to_rfc3339().to_string());
 
     // FIXME: Handle errors gracefully
     // Check with database first
@@ -579,4 +581,71 @@ async fn get_leaderboard_entries_for_users(
         params,
     )
     .await)
+}
+
+async fn set_leaderboard_score(
+    proto_payload: &ProtoPayload,
+    context: &mut HandlerContext,
+    _user_info: Arc<UserInfo>,
+    _reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    let request = SetLeaderboardScoreRequest::parse_from_bytes(&proto_payload.payload)
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+
+    let id = request.leaderboard_id().to_string();
+    let current_score = match db::gameplay::get_leaderboard_score(context, &id).await {
+        Ok((score, _old_rank, _entry_total_count, _force, _details)) => score,
+        Err(sqlx::Error::RowNotFound) => 0,
+        Err(err) => return Err(MessageHandlingError::new(MessageHandlingErrorKind::DB(err))),
+    };
+    let mut header = Header::new();
+    header.set_type(
+        MessageType::SET_LEADERBOARD_SCORE_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+    if request.force_update() || (request.score() > current_score) {
+        db::gameplay::set_leaderboard_score(
+            context,
+            &id,
+            request.score(),
+            request.force_update(),
+            request.details(),
+        )
+        .await
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+        context.set_updated_leaderboards(true);
+    } else {
+        header
+            .mut_special_fields()
+            .mut_unknown_fields()
+            .add_varint(101, 409);
+
+        return Ok(ProtoPayload {
+            header,
+            payload: Vec::new(),
+        });
+    }
+    let (_score, old_rank, entry_total_count, _force, _details) =
+        db::gameplay::get_leaderboard_score(context, &id)
+            .await
+            .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+    let new_rank = if old_rank != 0 { old_rank } else { 1 };
+    let entry_total_count = if old_rank != 0 {
+        entry_total_count
+    } else {
+        entry_total_count + 1
+    };
+
+    let mut proto_data = SetLeaderboardScoreResponse::new();
+    proto_data.set_score(request.score());
+    proto_data.set_old_rank(old_rank);
+    proto_data.set_new_rank(new_rank);
+    proto_data.set_leaderboard_entry_total_count(entry_total_count);
+    let payload = proto_data
+        .write_to_bytes()
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+    header.set_size(payload.len().try_into().unwrap());
+    Ok(ProtoPayload { header, payload })
 }

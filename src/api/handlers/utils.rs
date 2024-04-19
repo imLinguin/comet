@@ -3,6 +3,7 @@ use crate::api::gog::leaderboards::get_leaderboards_entries;
 use crate::api::handlers::context::HandlerContext;
 use crate::api::handlers::error::{MessageHandlingError, MessageHandlingErrorKind};
 use crate::api::structs::IDType;
+use crate::db;
 use log::{debug, warn};
 use protobuf::{Enum, Message};
 use reqwest::Client;
@@ -47,13 +48,23 @@ pub async fn handle_leaderboards_query<I, K, V>(
     params: I,
 ) -> Result<ProtoPayload, MessageHandlingError>
 where
-    I: IntoIterator<Item = (K, V)>,
+    I: IntoIterator<Item = (K, V)> + Clone,
     K: AsRef<str>,
-    V: AsRef<str>,
+    V: AsRef<str> + std::fmt::Display,
 {
-    let leaderboards = gog::leaderboards::get_leaderboards(context, reqwest_client, params)
-        .await
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+    let leaderboards_network =
+        gog::leaderboards::get_leaderboards(context, reqwest_client, params.clone()).await;
+
+    let leaderboards = match leaderboards_network {
+        Ok(ld) => ld,
+        Err(_) => db::gameplay::get_leaderboards_defs(context, params)
+            .await
+            .unwrap_or_default(),
+    };
+
+    if let Err(err) = super::db::gameplay::update_leaderboards(&context, &leaderboards).await {
+        log::error!("Failed to save leaderboards definitions {}", err);
+    }
 
     let proto_defs = leaderboards.iter().map(|entry| {
         let mut new_def = get_leaderboards_response::LeaderboardDefinition::new();
