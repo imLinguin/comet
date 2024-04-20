@@ -115,6 +115,7 @@ pub async fn handle_message(
     let type_ = payload.header.type_();
 
     debug!("Parsing message {} {}", sort, type_);
+    debug!("payload.payload = {:?}", payload.payload);
     let mut result = match sort {
         1 => communication_service::entry_point(&payload, context, user_info, reqwest_client).await,
         2 => webbroker::entry_point(&payload).await,

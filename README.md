@@ -14,6 +14,7 @@ Project is continuation of Yepoleb's work [https://gitlab.com/Yepoleb/comet/](ht
 
 Excluding Overlay, and Cloud Sync related.
 
+- [x] LIBRARY_INFO_REQUEST (unstable)
 - [x] AUTH_INFO_REQUEST
 - [x] GET_USER_STATS_REQUEST
 - [x] SUBSCRIBE_TOPIC_REQUEST

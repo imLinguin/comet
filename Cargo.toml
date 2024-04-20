@@ -8,9 +8,9 @@ authors = ["Paweł Lidwin <linguin@tutanota.com>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = { version = "0.12", features = ["http2", "charset", "macos-system-configuration", "json", "rustls-tls-manual-roots"], default-features = false }
+reqwest = { version = "0.12", features = ["http2", "charset", "macos-system-configuration", "json", "rustls-tls-manual-roots", "stream"], default-features = false }
 tokio = { version = "1", features = ["full"] }
-tokio-util = "0.7"
+tokio-util = { version = "0.7.10", features = ["compat"] }
 tokio-tungstenite = { version = "0.21", features = ["__rustls-tls"] }
 futures-util = "0.3"
 serde = { version = "1.0", features = ["derive"] }
@@ -25,6 +25,7 @@ derive-getters = "0.3.0"
 chrono = "0.4.33"
 rustls = "0.22"
 rustls-pemfile = "2.1.1"
+async_zip = { version = "0.0.17", features = ["tokio", "deflate"] }
 
 [build-dependencies]
 protobuf-codegen = "3.4.0"

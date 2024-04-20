@@ -88,6 +88,24 @@ async fn main() {
     store_lock.insert(String::from(constants::GALAXY_CLIENT_ID), galaxy_token);
     drop(store_lock);
 
+    let client_clone = reqwest_client.clone();
+    tokio::spawn(async move {
+        api::gog::components::get_peer(
+            &client_clone,
+            paths::REDISTS_STORAGE.clone(),
+            api::gog::components::Platform::Windows,
+        )
+        .await
+        .expect("Failed to get peer");
+        #[cfg(target_os = "macos")]
+        api::gog::components::get_peer(
+            &client_clone,
+            paths::REDISTS_STORAGE.clone(),
+            api::gog::components::Platform::Mac,
+        )
+        .await;
+    });
+
     if let Some(subcommand) = args.subcommand {
         match subcommand {
             SubCommand::Preload {

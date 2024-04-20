@@ -3,6 +3,7 @@ use crate::api::gog::stats::FieldValue;
 use crate::api::handlers::context::HandlerContext;
 use crate::api::structs::{DataSource, IDType, UserInfo};
 use crate::db::gameplay::{set_stat_float, set_stat_int};
+use crate::paths::REDISTS_STORAGE;
 use crate::{constants, db};
 use chrono::{TimeZone, Utc};
 use log::{debug, info, warn};
@@ -33,7 +34,9 @@ pub async fn entry_point(
 
     let message_type: i32 = header.type_().try_into().unwrap();
 
-    if message_type == MessageType::AUTH_INFO_REQUEST.value() {
+    if message_type == MessageType::LIBRARY_INFO_REQUEST.value() {
+        library_info_request(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::AUTH_INFO_REQUEST.value() {
         auth_info_request(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_USER_STATS_REQUEST.value() {
         get_user_stats(payload, context, user_info, reqwest_client).await
@@ -66,6 +69,50 @@ pub async fn entry_point(
             MessageHandlingErrorKind::NotImplemented,
         ))
     }
+}
+
+async fn library_info_request(
+    payload: &ProtoPayload,
+    _context: &mut HandlerContext,
+    _user_info: Arc<UserInfo>,
+    _reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    log::warn!("LIBRARY_INFO_REQUEST is unstable, it may result in weird behavior");
+    let request_data = LibraryInfoRequest::parse_from_bytes(&payload.payload);
+    let request_data = request_data
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+
+    let compiler_type = request_data.compiler_type();
+    let compiler_version = request_data.compiler_version();
+
+    log::debug!("Compiler {:?} Version: {}", compiler_type, compiler_version);
+    let path = match compiler_type {
+        CompilerType::COMPILER_TYPE_MSVC => {
+            REDISTS_STORAGE.join(format!("peer/msvc-{}", compiler_version))
+        }
+        _ => REDISTS_STORAGE.join("peer/msvc-18"),
+    };
+    let path_str = path.to_str().unwrap().to_string();
+
+    let mut header = Header::new();
+    header.set_type(
+        MessageType::LIBRARY_INFO_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+
+    #[cfg(not(target_os = "windows"))]
+    let path_str = format!("Z:{}", path_str);
+
+    let mut data = LibraryInfoResponse::new();
+    data.set_location(path_str);
+    data.set_update_status(UpdateStatus::UPDATE_COMPLETE);
+
+    let payload = data.write_to_bytes().unwrap();
+    header.set_size(payload.len().try_into().unwrap());
+
+    Ok(ProtoPayload { header, payload })
 }
 
 async fn auth_info_request(

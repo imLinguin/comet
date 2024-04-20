@@ -342,7 +342,7 @@ impl NotificationPusherClient {
         let payload_size = header.size().try_into().unwrap();
         let mut payload: Vec<u8> = vec![0; payload_size];
 
-        payload.copy_from_slice(&data[header_size + 2..header_size + 2 + payload_size]);
+        payload.copy_from_slice(&data[header_size + 2..]);
 
         Ok(ProtoPayload { header, payload })
     }
