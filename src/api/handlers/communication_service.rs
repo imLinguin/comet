@@ -3,12 +3,14 @@ use crate::api::gog::stats::FieldValue;
 use crate::api::handlers::context::HandlerContext;
 use crate::api::structs::{DataSource, IDType, UserInfo};
 use crate::db::gameplay::{set_stat_float, set_stat_int};
+use crate::paths::REDISTS_STORAGE;
 use crate::{constants, db};
-use chrono::{Local, TimeZone, Utc};
+use chrono::{TimeZone, Utc};
 use log::{debug, info, warn};
 use protobuf::{Enum, Message};
 use reqwest::{Client, StatusCode};
 use std::sync::Arc;
+use base64::prelude::*;
 
 use crate::proto::common_utils::ProtoPayload;
 
@@ -33,7 +35,9 @@ pub async fn entry_point(
 
     let message_type: i32 = header.type_().try_into().unwrap();
 
-    if message_type == MessageType::AUTH_INFO_REQUEST.value() {
+    if message_type == MessageType::LIBRARY_INFO_REQUEST.value() {
+        library_info_request(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::AUTH_INFO_REQUEST.value() {
         auth_info_request(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_USER_STATS_REQUEST.value() {
         get_user_stats(payload, context, user_info, reqwest_client).await
@@ -55,6 +59,8 @@ pub async fn entry_point(
         get_leaderboard_entries_around_user(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_LEADERBOARD_ENTRIES_FOR_USERS_REQUEST.value() {
         get_leaderboard_entries_for_users(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::SET_LEADERBOARD_SCORE_REQUEST.value() {
+        set_leaderboard_score(payload, context, user_info, reqwest_client).await
     } else {
         warn!(
             "Unhandled communication service message type {}",
@@ -64,6 +70,50 @@ pub async fn entry_point(
             MessageHandlingErrorKind::NotImplemented,
         ))
     }
+}
+
+async fn library_info_request(
+    payload: &ProtoPayload,
+    _context: &mut HandlerContext,
+    _user_info: Arc<UserInfo>,
+    _reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    log::warn!("LIBRARY_INFO_REQUEST is unstable, it may result in weird behavior");
+    let request_data = LibraryInfoRequest::parse_from_bytes(&payload.payload);
+    let request_data = request_data
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+
+    let compiler_type = request_data.compiler_type();
+    let compiler_version = request_data.compiler_version();
+
+    log::debug!("Compiler {:?} Version: {}", compiler_type, compiler_version);
+    let path = match compiler_type {
+        CompilerType::COMPILER_TYPE_MSVC => {
+            REDISTS_STORAGE.join(format!("peer/msvc-{}", compiler_version))
+        }
+        _ => REDISTS_STORAGE.join("peer/msvc-18"),
+    };
+    let path_str = path.to_str().unwrap().to_string();
+
+    let mut header = Header::new();
+    header.set_type(
+        MessageType::LIBRARY_INFO_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+
+    #[cfg(not(target_os = "windows"))]
+    let path_str = format!("Z:{}", path_str);
+
+    let mut data = LibraryInfoResponse::new();
+    data.set_location(path_str);
+    data.set_update_status(UpdateStatus::UPDATE_COMPLETE);
+
+    let payload = data.write_to_bytes().unwrap();
+    header.set_size(payload.len().try_into().unwrap());
+
+    Ok(ProtoPayload { header, payload })
 }
 
 async fn auth_info_request(
@@ -419,8 +469,8 @@ async fn unlock_user_achievement(
 
     let ach_id: i64 = request_data.achievement_id().try_into().unwrap();
     let timestamp = request_data.time();
-    let dt = Local.timestamp_opt(timestamp.into(), 0).unwrap();
-    let timestamp_string = Some(dt.to_utc().to_rfc3339());
+    let dt = Utc.timestamp_opt(timestamp.into(), 0).unwrap();
+    let timestamp_string = Some(dt.to_rfc3339().to_string());
 
     // FIXME: Handle errors gracefully
     // Check with database first
@@ -579,4 +629,73 @@ async fn get_leaderboard_entries_for_users(
         params,
     )
     .await)
+}
+
+async fn set_leaderboard_score(
+    proto_payload: &ProtoPayload,
+    context: &mut HandlerContext,
+    _user_info: Arc<UserInfo>,
+    _reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    let request = SetLeaderboardScoreRequest::parse_from_bytes(&proto_payload.payload)
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+
+    let id = request.leaderboard_id().to_string();
+    let current_score = match db::gameplay::get_leaderboard_score(context, &id).await {
+        Ok((score, _old_rank, _entry_total_count, _force, _details)) => score,
+        Err(sqlx::Error::RowNotFound) => 0,
+        Err(err) => return Err(MessageHandlingError::new(MessageHandlingErrorKind::DB(err))),
+    };
+    let mut header = Header::new();
+    header.set_type(
+        MessageType::SET_LEADERBOARD_SCORE_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+    if request.force_update() || (request.score() > current_score) {
+        let details = request.details();
+        let details = BASE64_STANDARD_NO_PAD.encode(details);
+        db::gameplay::set_leaderboard_score(
+            context,
+            &id,
+            request.score(),
+            request.force_update(),
+            &details,
+        )
+        .await
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+        context.set_updated_leaderboards(true);
+    } else {
+        header
+            .mut_special_fields()
+            .mut_unknown_fields()
+            .add_varint(101, 409);
+
+        return Ok(ProtoPayload {
+            header,
+            payload: Vec::new(),
+        });
+    }
+    let (_score, old_rank, entry_total_count, _force, _details) =
+        db::gameplay::get_leaderboard_score(context, &id)
+            .await
+            .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+    let new_rank = if old_rank != 0 { old_rank } else { 1 };
+    let entry_total_count = if old_rank != 0 {
+        entry_total_count
+    } else {
+        entry_total_count + 1
+    };
+
+    let mut proto_data = SetLeaderboardScoreResponse::new();
+    proto_data.set_score(request.score());
+    proto_data.set_old_rank(old_rank);
+    proto_data.set_new_rank(new_rank);
+    proto_data.set_leaderboard_entry_total_count(entry_total_count);
+    let payload = proto_data
+        .write_to_bytes()
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+    header.set_size(payload.len().try_into().unwrap());
+    Ok(ProtoPayload { header, payload })
 }

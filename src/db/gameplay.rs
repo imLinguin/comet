@@ -1,4 +1,5 @@
 use crate::api::gog::achievements::Achievement;
+use crate::api::gog::leaderboards::LeaderboardDefinition;
 use crate::api::gog::stats::{FieldValue, Stat};
 use crate::api::handlers::context::HandlerContext;
 use crate::paths;
@@ -407,6 +408,169 @@ pub async fn set_achievement(
         .bind(achievement_id)
         .execute(&mut *connection)
         .await?;
+
+    Ok(())
+}
+
+pub async fn update_leaderboards(
+    context: &HandlerContext,
+    leaderboard_definitions: &Vec<LeaderboardDefinition>,
+) -> Result<(), Error> {
+    let mut connection = context.db_connection().acquire().await?;
+    let mut transaction = connection.begin().await?;
+
+    // Get existing ids from db
+    let ids_res = sqlx::query("SELECT id FROM leaderboard")
+        .fetch_all(&mut *transaction)
+        .await?;
+    let ids: Vec<String> = ids_res
+        .iter()
+        .map(|row| {
+            let id: i64 = row.try_get("id").unwrap();
+            id.to_string()
+        })
+        .collect();
+
+    for def in leaderboard_definitions {
+        let sort_method = match def.sort_method().as_str() {
+            "desc" => "SORT_METHOD_DESCENDING",
+            _ => "SORT_METHOD_ASCENDING",
+        };
+        let display_type = match def.display_type().as_str() {
+            "time_seconds" => "DISPLAY_TYPE_TIME_SECONDS",
+            "time_milliseconds" => "DISPLAY_TYPE_TIME_MILLISECONDS",
+            _ => "DISPLAY_TYPE_NUMERIC",
+        };
+        if !ids.contains(def.id()) {
+            log::trace!("Inserting new leaderboard entry {}", def.key());
+            sqlx::query("INSERT INTO leaderboard (id, key, name, sort_method, display_type, changed) VALUES ($1, $2, $3, $4, $5, 0)")
+                .bind(def.id())
+                .bind(def.key())
+                .bind(def.name())
+                .bind(sort_method)
+                .bind(display_type)
+                .execute(&mut *transaction)
+                .await?;
+        } else {
+            log::trace!("Updating leaderboard entry {}", def.key());
+            sqlx::query("UPDATE leaderboard SET id=$1, key=$2, name=$3, sort_method=$4, display_type=$5 WHERE id=$1")
+                .bind(def.id())
+                .bind(def.key())
+                .bind(def.name())
+                .bind(sort_method)
+                .bind(display_type)
+                .execute(&mut *transaction)
+                .await?;
+        }
+    }
+
+    transaction.commit().await?;
+    Ok(())
+}
+
+fn row_to_leaderboard_def(row: &SqliteRow) -> LeaderboardDefinition {
+    let id: i64 = row.try_get("id").unwrap();
+    let key: String = row.try_get("key").unwrap();
+    let name: String = row.try_get("name").unwrap();
+    let sort_method: String = row.try_get("sort_method").unwrap();
+    let display_type: String = row.try_get("display_type").unwrap();
+
+    let sort_method = match sort_method.as_str() {
+        "SORT_METHOD_DESCENDING" => "desc",
+        _ => "asc",
+    }
+    .to_string();
+    let display_type = match display_type.as_str() {
+        "DISPLAY_TYPE_TIME_SECONDS" => "time_seconds",
+        "DISPLAY_TYPE_TIME_MILLISECONDS" => "time_milliseconds",
+        _ => "numeric",
+    }
+    .to_string();
+    LeaderboardDefinition::new(id.to_string(), key, name, sort_method, display_type)
+}
+
+pub async fn get_leaderboards_defs<I, K, V>(
+    context: &HandlerContext,
+    params: I,
+) -> Result<Vec<LeaderboardDefinition>, Error>
+where
+    I: IntoIterator<Item = (K, V)>,
+    K: AsRef<str>,
+    V: AsRef<str> + std::fmt::Display,
+{
+    let mut connection = context.db_connection().acquire().await?;
+    let data = sqlx::query("SELECT * FROM leaderboard")
+        .fetch_all(&mut *connection)
+        .await?;
+
+    let leaderboards = data.iter().map(|row| row_to_leaderboard_def(row));
+    if let Some((_, value)) = params.into_iter().find(|(k, _v)| k.as_ref() == "keys") {
+        let value = value.to_string();
+        let ids: Vec<&str> = value.split(",").collect();
+        return Ok(leaderboards
+            .filter(|x| ids.contains(&x.id().as_str()))
+            .collect());
+    }
+    Ok(leaderboards.collect())
+}
+
+pub async fn get_leaderboards_score_changed(
+    context: &HandlerContext,
+) -> Result<Vec<(i64, i32, u32, u32, bool, String)>, Error> {
+    let mut connection = context.db_connection().acquire().await?;
+    let mut leaderboards = Vec::new();
+    let rows = sqlx::query("SELECT id, score, rank, force_update, details, entry_total_count FROM leaderboard WHERE changed=1")
+                .fetch_all(&mut *connection)
+                .await?;
+
+    for row in rows {
+        let id: i64 = row.try_get("id").unwrap();
+        let score: i32 = row.try_get("score").unwrap();
+        let rank: u32 = row.try_get("rank").unwrap();
+        let entry_total_count: u32 = row.try_get("entry_total_count").unwrap();
+        let force: bool = row.try_get("force_update").unwrap();
+        let details: String = row.try_get("details").unwrap();
+        leaderboards.push((id, score, rank, entry_total_count, force, details))
+    }
+
+    Ok(leaderboards)
+}
+
+pub async fn get_leaderboard_score(
+    context: &HandlerContext,
+    leaderboard_id: &str,
+) -> Result<(i32, u32, u32, bool, String), Error> {
+    let mut connection = context.db_connection().acquire().await?;
+    let row =
+        sqlx::query("SELECT score, rank, force_update, details, entry_total_count FROM leaderboard WHERE id = $1")
+            .bind(leaderboard_id)
+            .fetch_one(&mut *connection)
+            .await?;
+    let score: i32 = row.try_get("score").unwrap();
+    let rank: u32 = row.try_get("rank").unwrap();
+    let entry_total_count: u32 = row.try_get("entry_total_count").unwrap();
+    let force: bool = row.try_get("force_update").unwrap();
+    let details: String = row.try_get("details").unwrap();
+    Ok((score, rank, entry_total_count, force, details))
+}
+
+pub async fn set_leaderboard_score(
+    context: &HandlerContext,
+    leaderboard_id: &str,
+    score: i32,
+    force: bool,
+    details: &str,
+) -> Result<(), Error> {
+    let mut connection = context.db_connection().acquire().await?;
+    sqlx::query(
+        "UPDATE leaderboard SET changed=1, score=$1, force_update=$2, details=$3 WHERE id = $4",
+    )
+    .bind(score)
+    .bind(force as u8)
+    .bind(details)
+    .bind(leaderboard_id)
+    .execute(&mut *connection)
+    .await?;
 
     Ok(())
 }

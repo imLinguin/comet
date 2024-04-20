@@ -27,4 +27,5 @@ lazy_static! {
 
 lazy_static! {
     pub static ref GAMEPLAY_STORAGE: PathBuf = DATA_PATH.join("gameplay");
+    pub static ref REDISTS_STORAGE: PathBuf = DATA_PATH.join("redist");
 }

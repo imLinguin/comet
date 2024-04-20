@@ -3,9 +3,11 @@ use crate::api::gog::leaderboards::get_leaderboards_entries;
 use crate::api::handlers::context::HandlerContext;
 use crate::api::handlers::error::{MessageHandlingError, MessageHandlingErrorKind};
 use crate::api::structs::IDType;
+use crate::db;
 use log::{debug, warn};
 use protobuf::{Enum, Message};
 use reqwest::Client;
+use base64::prelude::*;
 use tokio::{io::AsyncReadExt, net::TcpStream};
 
 use crate::proto::galaxy_protocols_communication_service::get_leaderboard_entries_response::LeaderboardEntry;
@@ -47,13 +49,23 @@ pub async fn handle_leaderboards_query<I, K, V>(
     params: I,
 ) -> Result<ProtoPayload, MessageHandlingError>
 where
-    I: IntoIterator<Item = (K, V)>,
+    I: IntoIterator<Item = (K, V)> + Clone,
     K: AsRef<str>,
-    V: AsRef<str>,
+    V: AsRef<str> + std::fmt::Display,
 {
-    let leaderboards = gog::leaderboards::get_leaderboards(context, reqwest_client, params)
-        .await
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+    let leaderboards_network =
+        gog::leaderboards::get_leaderboards(context, reqwest_client, params.clone()).await;
+
+    let leaderboards = match leaderboards_network {
+        Ok(ld) => ld,
+        Err(_) => db::gameplay::get_leaderboards_defs(context, params)
+            .await
+            .unwrap_or_default(),
+    };
+
+    if let Err(err) = super::db::gameplay::update_leaderboards(&context, &leaderboards).await {
+        log::error!("Failed to save leaderboards definitions {}", err);
+    }
 
     let proto_defs = leaderboards.iter().map(|entry| {
         let mut new_def = get_leaderboards_response::LeaderboardDefinition::new();
@@ -132,6 +144,11 @@ where
                     new_entry.set_user_id(user_id.value());
                     new_entry.set_score(item.score);
                     new_entry.set_rank(item.rank);
+                    if let Some(details) = &item.details {
+                        if let Ok(details) = BASE64_STANDARD_NO_PAD.decode(details) {
+                            new_entry.set_details(details)
+                        }
+                    }
                     new_entry
                 }));
             data.write_to_bytes().unwrap()
