@@ -10,6 +10,7 @@ use log::{debug, info, warn};
 use protobuf::{Enum, Message};
 use reqwest::{Client, StatusCode};
 use std::sync::Arc;
+use base64::prelude::*;
 
 use crate::proto::common_utils::ProtoPayload;
 
@@ -653,12 +654,14 @@ async fn set_leaderboard_score(
             .unwrap(),
     );
     if request.force_update() || (request.score() > current_score) {
+        let details = request.details();
+        let details = BASE64_STANDARD_NO_PAD.encode(details);
         db::gameplay::set_leaderboard_score(
             context,
             &id,
             request.score(),
             request.force_update(),
-            request.details(),
+            &details,
         )
         .await
         .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;

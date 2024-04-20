@@ -26,6 +26,7 @@ chrono = "0.4.33"
 rustls = "0.22"
 rustls-pemfile = "2.1.1"
 async_zip = { version = "0.0.17", features = ["tokio", "deflate"] }
+base64 = "0.22.0"
 
 [build-dependencies]
 protobuf-codegen = "3.4.0"

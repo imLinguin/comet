@@ -7,6 +7,7 @@ use crate::db;
 use log::{debug, warn};
 use protobuf::{Enum, Message};
 use reqwest::Client;
+use base64::prelude::*;
 use tokio::{io::AsyncReadExt, net::TcpStream};
 
 use crate::proto::galaxy_protocols_communication_service::get_leaderboard_entries_response::LeaderboardEntry;
@@ -143,6 +144,11 @@ where
                     new_entry.set_user_id(user_id.value());
                     new_entry.set_score(item.score);
                     new_entry.set_rank(item.rank);
+                    if let Some(details) = &item.details {
+                        if let Ok(details) = BASE64_STANDARD_NO_PAD.decode(details) {
+                            new_entry.set_details(details)
+                        }
+                    }
                     new_entry
                 }));
             data.write_to_bytes().unwrap()
