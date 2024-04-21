@@ -98,7 +98,7 @@ async fn main() {
         loop {
             if retries > 10 {
                 log::warn!("Failed to get peer libraries over 10 times, will not try again");
-                return
+                return;
             }
             tokio::time::sleep(Duration::from_secs(retries * 5)).await;
             retries = retries + 1;
@@ -116,6 +116,7 @@ async fn main() {
                 api::gog::components::Platform::Mac,
             )
             .await;
+
             #[cfg(target_os = "macos")]
             if result_win.is_ok() && result_mac.is_ok() {
                 break;
@@ -123,6 +124,7 @@ async fn main() {
                 continue;
             }
 
+            #[cfg(not(target_os = "macos"))]
             if result_win.is_ok() {
                 break;
             }

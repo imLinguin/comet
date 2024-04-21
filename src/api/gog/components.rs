@@ -55,13 +55,13 @@ pub async fn get_peer(
     reqwest_client: &Client,
     dest_path: PathBuf,
     platform: Platform,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let last_check = dest_path.join(format!(".peer-check-{}", platform.to_string()));
     let version_path = dest_path.join(format!(".peer-version-{}", platform.to_string()));
     if let Ok(time_str) = fs::read_to_string(&last_check).await {
         let timestamp: i64 = time_str.parse().unwrap_or_default();
         if timestamp + (24 * 3600) > chrono::Utc::now().timestamp() {
-            return Ok(())
+            return Ok(());
         }
     }
     log::debug!("Checking for peer updates");
