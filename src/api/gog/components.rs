@@ -55,8 +55,15 @@ pub async fn get_peer(
     reqwest_client: &Client,
     dest_path: PathBuf,
     platform: Platform,
-) -> Result<(), reqwest::Error> {
+) -> Result<(), Box<dyn std::error::Error>> {
+    let last_check = dest_path.join(format!(".peer-check-{}", platform.to_string()));
     let version_path = dest_path.join(format!(".peer-version-{}", platform.to_string()));
+    if let Ok(time_str) = fs::read_to_string(&last_check).await {
+        let timestamp: i64 = time_str.parse().unwrap_or_default();
+        if timestamp + (24 * 3600) > chrono::Utc::now().timestamp() {
+            return Ok(())
+        }
+    }
     log::debug!("Checking for peer updates");
     let url = format!(
         "https://cfg.gog.com/desktop-galaxy-peer/7/master/files-{}.json",
@@ -73,9 +80,7 @@ pub async fn get_peer(
             }
         }
     } else {
-        fs::create_dir_all(&dest_path)
-            .await
-            .expect("Failed to create directory");
+        fs::create_dir_all(&dest_path).await?;
     }
 
     // Download
@@ -86,7 +91,7 @@ pub async fn get_peer(
         let response = reqwest_client.get(url).send().await?;
         let data = response.bytes().await?;
 
-        let zip = ZipFileReader::new(data.to_vec()).await.unwrap();
+        let zip = ZipFileReader::new(data.to_vec()).await?;
 
         let file_path = dest_path.join(file.path());
         let parent = file_path.parent().unwrap();
@@ -96,18 +101,13 @@ pub async fn get_peer(
                 .expect("Failed to create directory");
         }
 
-        let mut reader = zip.reader_without_entry(0).await.unwrap();
-        let file_handle = fs::File::create(file_path)
-            .await
-            .expect("Failed to write file");
-        io::copy(&mut reader, &mut file_handle.compat_write())
-            .await
-            .expect("Failed to write file");
+        let mut reader = zip.reader_without_entry(0).await?;
+        let file_handle = fs::File::create(file_path).await?;
+        io::copy(&mut reader, &mut file_handle.compat_write()).await?;
     }
 
-    fs::write(version_path, manifest.version())
-        .await
-        .expect("Failed to write version");
+    fs::write(version_path, manifest.version()).await?;
+    fs::write(last_check, chrono::Utc::now().timestamp().to_string()).await?;
 
     Ok(())
 }

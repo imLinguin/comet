@@ -1,3 +1,4 @@
+use std::time::Duration;
 use std::{collections::HashMap, sync::Arc};
 
 use clap::{Parser, Subcommand};
@@ -65,7 +66,10 @@ struct Args {
 async fn main() {
     let args = Args::parse();
     let env = Env::new().filter_or("COMET_LOG", "info");
-    Builder::from_env(env).target(Target::Stderr).init();
+    Builder::from_env(env)
+        .target(Target::Stderr)
+        .filter_module("h2::codec", log::LevelFilter::Off)
+        .init();
 
     let (access_token, refresh_token, galaxy_user_id) =
         import_parsers::handle_credentials_import(&args);
@@ -90,20 +94,39 @@ async fn main() {
 
     let client_clone = reqwest_client.clone();
     tokio::spawn(async move {
-        api::gog::components::get_peer(
-            &client_clone,
-            paths::REDISTS_STORAGE.clone(),
-            api::gog::components::Platform::Windows,
-        )
-        .await
-        .expect("Failed to get peer");
-        #[cfg(target_os = "macos")]
-        api::gog::components::get_peer(
-            &client_clone,
-            paths::REDISTS_STORAGE.clone(),
-            api::gog::components::Platform::Mac,
-        )
-        .await;
+        let mut retries = 0;
+        loop {
+            if retries > 10 {
+                log::warn!("Failed to get peer libraries over 10 times, will not try again");
+                return
+            }
+            tokio::time::sleep(Duration::from_secs(retries * 5)).await;
+            retries = retries + 1;
+
+            let result_win = api::gog::components::get_peer(
+                &client_clone,
+                paths::REDISTS_STORAGE.clone(),
+                api::gog::components::Platform::Windows,
+            )
+            .await;
+            #[cfg(target_os = "macos")]
+            let result_mac = api::gog::components::get_peer(
+                &client_clone,
+                paths::REDISTS_STORAGE.clone(),
+                api::gog::components::Platform::Mac,
+            )
+            .await;
+            #[cfg(target_os = "macos")]
+            if result_win.is_ok() && result_mac.is_ok() {
+                break;
+            } else {
+                continue;
+            }
+
+            if result_win.is_ok() {
+                break;
+            }
+        }
     });
 
     if let Some(subcommand) = args.subcommand {
