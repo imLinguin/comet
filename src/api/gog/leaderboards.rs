@@ -173,5 +173,6 @@ pub async fn post_leaderboard_score(
         .await?;
 
     let response = response.error_for_status()?;
-    Ok(response.json().await?)
+    let data = response.json().await?;
+    Ok(data)
 }

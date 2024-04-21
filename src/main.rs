@@ -101,7 +101,7 @@ async fn main() {
                 return;
             }
             tokio::time::sleep(Duration::from_secs(retries * 5)).await;
-            retries = retries + 1;
+            retries += 1;
 
             let result_win = api::gog::components::get_peer(
                 &client_clone,

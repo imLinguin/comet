@@ -56,8 +56,8 @@ pub async fn get_peer(
     dest_path: PathBuf,
     platform: Platform,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let last_check = dest_path.join(format!(".peer-check-{}", platform.to_string()));
-    let version_path = dest_path.join(format!(".peer-version-{}", platform.to_string()));
+    let last_check = dest_path.join(format!(".peer-check-{}", platform));
+    let version_path = dest_path.join(format!(".peer-version-{}", platform));
     if let Ok(time_str) = fs::read_to_string(&last_check).await {
         let timestamp: i64 = time_str.parse().unwrap_or_default();
         if timestamp + (24 * 3600) > chrono::Utc::now().timestamp() {
