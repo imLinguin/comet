@@ -79,7 +79,7 @@ pub struct LeaderboardEntry {
     pub user_id: String,
     pub rank: u32,
     pub score: u32,
-    pub details: Option<String>
+    pub details: Option<String>,
 }
 
 #[derive(Deserialize)]

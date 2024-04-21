@@ -339,14 +339,36 @@ async fn sync_routine(
                             if let Some(status) = err.status() {
                                 if status.as_u16() == 409 {
                                     warn!("Leaderboard conflict for {}", id);
-                                    sqlx::query(
-                                        "UPDATE leaderboard SET changed=0, score=$2 WHERE id=$1",
+                                    let entries = gog::leaderboards::get_leaderboards_entries(
+                                        context,
+                                        reqwest_client,
+                                        id as u64,
+                                        [("users", &user_info.galaxy_user_id)],
                                     )
+                                    .await;
+                                    match entries {
+                                        Ok(entries) => {
+                                            if let Some(entry) = entries.items.first() {
+                                                sqlx::query("UPDATE leaderboard SET changed=0, score=$2, rank=$3 WHERE id=$1")
                                     .bind(id)
-                                    .bind(score)
+                                    .bind(entry.score)
+                                    .bind(entry.rank)
                                     .execute(&mut *transaction)
                                     .await
                                     .expect("Failed to set new score locally");
+                                            }
+                                        }
+                                        Err(err) => {
+                                            error!("{}", err);
+                                            sqlx::query(
+                                                "UPDATE leaderboard SET changed=0 WHERE id=$1",
+                                            )
+                                            .bind(id)
+                                            .execute(&mut *transaction)
+                                            .await
+                                            .expect("Failed to set new score locally");
+                                        }
+                                    }
                                 }
                             }
                             warn!("More details {}", err);

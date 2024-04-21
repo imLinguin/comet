@@ -4,10 +4,10 @@ use crate::api::handlers::context::HandlerContext;
 use crate::api::handlers::error::{MessageHandlingError, MessageHandlingErrorKind};
 use crate::api::structs::IDType;
 use crate::db;
+use base64::prelude::*;
 use log::{debug, warn};
 use protobuf::{Enum, Message};
 use reqwest::Client;
-use base64::prelude::*;
 use tokio::{io::AsyncReadExt, net::TcpStream};
 
 use crate::proto::galaxy_protocols_communication_service::get_leaderboard_entries_response::LeaderboardEntry;

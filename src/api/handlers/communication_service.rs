@@ -5,12 +5,12 @@ use crate::api::structs::{DataSource, IDType, UserInfo};
 use crate::db::gameplay::{set_stat_float, set_stat_int};
 use crate::paths::REDISTS_STORAGE;
 use crate::{constants, db};
+use base64::prelude::*;
 use chrono::{TimeZone, Utc};
 use log::{debug, info, warn};
 use protobuf::{Enum, Message};
 use reqwest::{Client, StatusCode};
 use std::sync::Arc;
-use base64::prelude::*;
 
 use crate::proto::common_utils::ProtoPayload;
 
