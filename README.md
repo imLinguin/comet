@@ -1,4 +1,5 @@
 # Comet
+[![Build nightly](https://github.com/imLinguin/comet/actions/workflows/build.yml/badge.svg)](https://github.com/imLinguin/comet/actions/workflows/build.yml)
 
 Open Source implementation of GOG Galaxy's Communication Service
 
