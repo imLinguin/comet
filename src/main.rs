@@ -58,6 +58,14 @@ struct Args {
     #[cfg(target_os = "linux")]
     lutris: bool,
 
+    #[arg(
+        short,
+        long,
+        global = true,
+        help = "Make comet quit after every client disconnects. Use COMET_IDLE_WAIT environment variable to control the wait time (seconds)"
+    )]
+    quit: bool,
+
     #[command(subcommand)]
     subcommand: Option<SubCommand>,
 }
@@ -234,6 +242,15 @@ async fn main() {
     info!("Listening on port 9977");
     let socket_shutdown = cloned_shutdown.clone();
     let cloned_user_info = user_info.clone();
+
+    let (client_exit, mut con_exit_recv) = tokio::sync::mpsc::unbounded_channel::<bool>();
+
+    let comet_idle_wait: u64 = match std::env::var("COMET_IDLE_WAIT") {
+        Ok(wait) => wait.parse().unwrap_or(15),
+        Err(_) => 15,
+    };
+    let mut ever_connected = false;
+    let mut active_clients = 0;
     loop {
         let (socket, _addr) = tokio::select! {
             accept = listener.accept() => {
@@ -245,6 +262,14 @@ async fn main() {
                     }
                 }
             }
+            _ = tokio::time::sleep(Duration::from_secs(comet_idle_wait)) => {
+                if active_clients == 0 && ever_connected {
+                    socket_shutdown.cancel();
+                    break
+                }
+                continue;
+            },
+            _ = con_exit_recv.recv() => { active_clients -= 1; continue; }
             _ = socket_shutdown.cancelled() => {break}
         };
 
@@ -255,6 +280,9 @@ async fn main() {
         let cloned_token_store = token_store.clone();
         let shutdown_handler = socket_shutdown.clone();
         let socket_user_info = cloned_user_info.clone();
+        let client_exit = client_exit.clone();
+        active_clients += 1;
+        ever_connected = args.quit;
         tokio::spawn(async move {
             api::handlers::entry_point(
                 socket,
@@ -264,7 +292,8 @@ async fn main() {
                 socket_topic_receiver,
                 shutdown_handler,
             )
-            .await
+            .await;
+            let _ = client_exit.send(true);
         });
     }
 
