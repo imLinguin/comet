@@ -30,7 +30,11 @@ In case of Wine/Proton make sure to run the command above in the context of your
 
 Use 
 ```shell
-gcc -o GalaxyCommunication.exe main.c -ladvapi32
+meson setup builddir
 ```
 
-For cross compilation on Linux use `x86_64-w64-mingw32-gcc`
+For cross compilation on Linux/Mac make sure `mingw` is installed and add a `--cross-file meson/x86_64-w64-mingw32.ini` to the setup command
+
+```shell
+meson compile -C builddir
+``

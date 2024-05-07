@@ -22,13 +22,19 @@ jobs:
     if: ${{ needs.check-changes.outputs.should_run != 'false' }}
     steps:
       - uses: actions/checkout@v4
-      - name: Build the dummy
+      - name: Setup 
         working-directory: dummy-service
-        run: gcc -o GalaxyCommunication.exe main.c -ladvapi32
+        run: meson setup build
+      - name: Build
+        working-directory: dummy-service
+        run: meson compile -C build
+      - name: Move files
+        working-directory: dummy-service
+        run: move build/*.exe .
       - uses: actions/upload-artifact@v4
         with:
           name: dummy-GalaxyCommunication.exe
-          path: dummy-service/GalaxyCommunication.exe
+          path: dummy-service/*.exe
   build:
     strategy:
       matrix:
