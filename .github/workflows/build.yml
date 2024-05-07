@@ -30,9 +30,8 @@ jobs:
       - name: Build
         working-directory: dummy-service
         run: meson compile -C build
-      - name: Move files
-        working-directory: dummy-service
-        run: move build/*.exe .
+      - name: Copy files
+        run: copy .\dummy-service\build\*.exe .\dummy-service
       - uses: actions/upload-artifact@v4
         with:
           name: dummy-GalaxyCommunication.exe
