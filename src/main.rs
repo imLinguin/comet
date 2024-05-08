@@ -29,6 +29,9 @@ enum SubCommand {
         client_id: String,
         client_secret: String,
     },
+
+    #[command(about = "Download overlay")]
+    Overlay,
 }
 
 #[derive(Parser, Debug)]
@@ -115,6 +118,7 @@ async fn main() {
                 &client_clone,
                 paths::REDISTS_STORAGE.clone(),
                 api::gog::components::Platform::Windows,
+                api::gog::components::Component::Peer,
             )
             .await;
             #[cfg(target_os = "macos")]
@@ -122,6 +126,7 @@ async fn main() {
                 &client_clone,
                 paths::REDISTS_STORAGE.clone(),
                 api::gog::components::Platform::Mac,
+                api::gog::components::Component::Peer,
             )
             .await;
 
@@ -205,6 +210,20 @@ async fn main() {
                     }
                 } else {
                     info!("Already in database")
+                }
+            }
+            SubCommand::Overlay => {
+                if let Err(err) = api::gog::components::get_peer(
+                    &reqwest_client,
+                    paths::REDISTS_STORAGE.clone(),
+                    api::gog::components::Platform::Windows,
+                    api::gog::components::Component::Overlay,
+                )
+                .await
+                {
+                    error!("Failed to download overlay {}", err);
+                } else {
+                    info!("Done");
                 }
             }
         }
