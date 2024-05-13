@@ -126,13 +126,13 @@ async fn auth_info_request(
     let request_data = request_data
         .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
 
-    let _pid = request_data.game_pid();
-    // TODO: Use PID to connect to overlay
-
     let client_id = request_data.client_id();
     let client_secret = request_data.client_secret();
     context.identify_client(client_id, client_secret);
     info!("Client identified as {} {}", client_id, client_secret);
+
+    let pid = request_data.game_pid();
+    info!("Game PID: {}", pid);
 
     let token_storage = context.token_store().lock().await;
     let galaxy_token = token_storage
