@@ -91,6 +91,7 @@ async fn library_info_request(
         CompilerType::COMPILER_TYPE_MSVC => {
             REDISTS_STORAGE.join(format!("peer/msvc-{}", compiler_version))
         }
+        CompilerType::COMPILER_TYPE_CLANG => REDISTS_STORAGE.join("peer"),
         _ => REDISTS_STORAGE.join("peer/msvc-18"),
     };
     let path_str = path.to_str().unwrap().to_string();
@@ -102,9 +103,6 @@ async fn library_info_request(
             .try_into()
             .unwrap(),
     );
-
-    #[cfg(not(target_os = "windows"))]
-    let path_str = format!("Z:{}", path_str);
 
     let mut data = LibraryInfoResponse::new();
     data.set_location(path_str);
@@ -128,8 +126,10 @@ async fn auth_info_request(
 
     let client_id = request_data.client_id();
     let client_secret = request_data.client_secret();
-    context.identify_client(client_id, client_secret);
-    info!("Client identified as {} {}", client_id, client_secret);
+    if !context.client_identified() {
+        context.identify_client(client_id, client_secret);
+        info!("Client identified as {} {}", client_id, client_secret);
+    }
 
     let pid = request_data.game_pid();
     info!("Game PID: {}", pid);
