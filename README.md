@@ -91,7 +91,7 @@ Or Lutris
 comet --from-lutris --username <USERNAME>
 ```
 
-Or use the shortcut script provided for non-Steam shortcuts. See the [Steam Deck Usage Guide](steamdeck/USAGE.md).
+Or use the shortcut script provided for non-Steam shortcuts. See the [Steam Deck Usage Guide](docs/steamdeck/USAGE.md).
 
 ## Contributing
 
