@@ -31,8 +31,8 @@ impl HandlerContext {
             client_identified: false,
             client_id: None,
             client_secret: None,
-            updated_achievements: true,
-            updated_stats: true,
+            updated_achievements: false,
+            updated_stats: false,
             updated_leaderboards: true,
         }
     }

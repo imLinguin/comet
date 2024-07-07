@@ -63,7 +63,7 @@ where
             .unwrap_or_default(),
     };
 
-    if let Err(err) = super::db::gameplay::update_leaderboards(&context, &leaderboards).await {
+    if let Err(err) = super::db::gameplay::update_leaderboards(context, &leaderboards).await {
         log::error!("Failed to save leaderboards definitions {}", err);
     }
 
@@ -71,8 +71,8 @@ where
         let mut new_def = get_leaderboards_response::LeaderboardDefinition::new();
         let display_type = match entry.display_type().as_str() {
             "numeric" => DisplayType::DISPLAY_TYPE_NUMERIC,
-            "time_seconds" => DisplayType::DISPLAY_TYPE_TIME_SECONDS,
-            "time_milliseconds" => DisplayType::DISPLAY_TYPE_TIME_MILLISECONDS,
+            "seconds" => DisplayType::DISPLAY_TYPE_TIME_SECONDS,
+            "milliseconds" => DisplayType::DISPLAY_TYPE_TIME_MILLISECONDS,
             _ => DisplayType::DISPLAY_TYPE_UNDEFINED,
         };
         let sort_method = match entry.sort_method().as_str() {
@@ -117,7 +117,7 @@ pub async fn handle_leaderboard_entries_request<I, K, V>(
     params: I,
 ) -> ProtoPayload
 where
-    I: IntoIterator<Item = (K, V)>,
+    I: IntoIterator<Item = (K, V)> + std::fmt::Debug,
     K: AsRef<str>,
     V: AsRef<str>,
 {
@@ -128,6 +128,7 @@ where
             .try_into()
             .unwrap(),
     );
+    log::debug!("Leaderboards request params: {:?}", params);
 
     let leaderboard_response =
         get_leaderboards_entries(context, reqwest_client, leaderboard_id, params).await;
@@ -145,12 +146,21 @@ where
                     new_entry.set_score(item.score);
                     new_entry.set_rank(item.rank);
                     if let Some(details) = &item.details {
-                        if let Ok(details) = BASE64_STANDARD_NO_PAD.decode(details) {
-                            new_entry.set_details(details)
+                        match BASE64_URL_SAFE_NO_PAD.decode(details) {
+                            Ok(details) => new_entry.set_details(details),
+                            Err(err) => log::error!(
+                                "Failed to decode details {:#?}, source -- {}",
+                                err,
+                                details
+                            ),
                         }
                     }
                     new_entry
                 }));
+            log::debug!(
+                "Leaderboards request entries: {}",
+                data.leaderboard_entries.len()
+            );
             data.write_to_bytes().unwrap()
         }
         Err(err) => {
@@ -164,7 +174,6 @@ where
             Vec::new()
         }
     };
-
     header.set_size(payload.len().try_into().unwrap());
 
     ProtoPayload { header, payload }

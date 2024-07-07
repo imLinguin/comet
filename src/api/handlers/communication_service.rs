@@ -208,7 +208,7 @@ async fn auth_info_request(
 
 async fn get_user_stats(
     _payload: &ProtoPayload,
-    context: &HandlerContext,
+    context: &mut HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -239,6 +239,8 @@ async fn get_user_stats(
             warn!("Failed to set statistics in gameplay database {:?}", err);
         }
     }
+
+    context.set_updated_stats(true);
 
     // Prepare response
     let mut header = Header::new();
@@ -378,7 +380,7 @@ async fn update_user_stat(
 
 async fn get_user_achievements(
     _proto_payload: &ProtoPayload,
-    context: &HandlerContext,
+    context: &mut HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -413,6 +415,7 @@ async fn get_user_achievements(
         {
             warn!("Failed to set achievements in gameplay database {:?}", err);
         }
+        context.set_updated_achievements(true);
     }
 
     let mut header = Header::new();
@@ -634,13 +637,18 @@ async fn get_leaderboard_entries_for_users(
 async fn set_leaderboard_score(
     proto_payload: &ProtoPayload,
     context: &mut HandlerContext,
-    _user_info: Arc<UserInfo>,
-    _reqwest_client: &Client,
+    user_info: Arc<UserInfo>,
+    reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request = SetLeaderboardScoreRequest::parse_from_bytes(&proto_payload.payload)
         .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
 
     let id = request.leaderboard_id().to_string();
+    info!(
+        "Got leaderboard score request for {}, score = {}",
+        id,
+        request.score()
+    );
     let current_score = match db::gameplay::get_leaderboard_score(context, &id).await {
         Ok((score, _old_rank, _entry_total_count, _force, _details)) => score,
         Err(sqlx::Error::RowNotFound) => 0,
@@ -653,20 +661,8 @@ async fn set_leaderboard_score(
             .try_into()
             .unwrap(),
     );
-    if request.force_update() || (request.score() > current_score) {
-        let details = request.details();
-        let details = BASE64_STANDARD_NO_PAD.encode(details);
-        db::gameplay::set_leaderboard_score(
-            context,
-            &id,
-            request.score(),
-            request.force_update(),
-            &details,
-        )
-        .await
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
-        context.set_updated_leaderboards(true);
-    } else {
+    if !request.force_update() && (request.score() <= current_score) {
+        log::warn!("No improvement {} vs {}", request.score(), current_score);
         header
             .mut_special_fields()
             .mut_unknown_fields()
@@ -677,6 +673,76 @@ async fn set_leaderboard_score(
             payload: Vec::new(),
         });
     }
+    let details = request.details();
+    let details = BASE64_URL_SAFE_NO_PAD.encode(details);
+    let post_details = if details.is_empty() {
+        None
+    } else {
+        Some(details.clone())
+    };
+    let response = gog::leaderboards::post_leaderboard_score(
+        context,
+        reqwest_client,
+        &user_info.galaxy_user_id,
+        request.leaderboard_id().try_into().unwrap(),
+        request.score(),
+        request.force_update(),
+        post_details,
+    )
+    .await;
+
+    match response {
+        Ok(data) => {
+            db::gameplay::set_leaderboard_score(
+                context,
+                &id,
+                request.score(),
+                request.force_update(),
+                &details,
+            )
+            .await
+            .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+            db::gameplay::set_leaderboard_rank(
+                context,
+                &id,
+                data.new_rank,
+                data.leaderboard_entry_total_count,
+            )
+            .await
+            .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+
+            let mut proto_data = SetLeaderboardScoreResponse::new();
+            proto_data.set_score(request.score());
+            proto_data.set_old_rank(data.old_rank);
+            proto_data.set_new_rank(data.new_rank);
+            proto_data.set_leaderboard_entry_total_count(data.leaderboard_entry_total_count);
+            let payload = proto_data
+                .write_to_bytes()
+                .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+            header.set_size(payload.len().try_into().unwrap());
+            return Ok(ProtoPayload { header, payload });
+        }
+        Err(err) => {
+            log::error!("Failed to set leaderboard score, {:?}", err);
+
+            db::gameplay::set_leaderboard_score(
+                context,
+                &id,
+                request.score(),
+                request.force_update(),
+                &details,
+            )
+            .await
+            .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+            if err.status().is_none() || err.status().is_some_and(|s| s.as_u16() != 409) {
+                db::gameplay::set_leaderboad_changed(context, &id, true)
+                    .await
+                    .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+                context.set_updated_leaderboards(true);
+            }
+        }
+    }
+
     let (_score, old_rank, entry_total_count, _force, _details) =
         db::gameplay::get_leaderboard_score(context, &id)
             .await

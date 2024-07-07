@@ -1,4 +1,4 @@
-use crate::api::structs::{Token, UserInfo};
+use crate::api::structs::Token;
 use reqwest::{Client, Error};
 use tokio::time;
 
@@ -26,15 +26,4 @@ pub async fn get_token_for(
     let result = result.error_for_status()?;
     let token: Token = result.json().await?;
     Ok(token)
-}
-
-pub async fn get_user_info(access_token: &str, session: &Client) -> Result<UserInfo, Error> {
-    let response = session
-        .get("https://embed.gog.com/userData.json")
-        .bearer_auth(access_token)
-        .send()
-        .await?;
-    let response = response.error_for_status()?;
-    let user_info: UserInfo = response.json().await.unwrap();
-    Ok(user_info)
 }

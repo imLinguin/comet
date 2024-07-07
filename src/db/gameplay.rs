@@ -297,8 +297,12 @@ pub async fn get_achievements(
 
     let mode_res = sqlx::query("SELECT * FROM database_info WHERE key='achievements_mode'")
         .fetch_one(&mut *connection)
-        .await?;
-    let achievements_mode = mode_res.try_get("value")?;
+        .await;
+
+    if let Err(sqlx::Error::RowNotFound) = mode_res {
+        return Ok((achievements, String::default()));
+    }
+    let achievements_mode = mode_res.unwrap().try_get("value")?;
 
     let db_achievements = sqlx::query(
         r#"SELECT id, key, name, description, visible_while_locked,
@@ -326,14 +330,10 @@ pub async fn set_achievements(
     let mut connection = database.acquire().await?;
     let mut transaction = connection.begin().await?;
 
-    sqlx::query("DELETE FROM achievement;")
-        .execute(&mut *transaction)
-        .await?;
-
     for achievement in achievements {
         let achievement_id = achievement.achievement_id().parse::<i64>().unwrap();
 
-        sqlx::query(
+        let insert_req = sqlx::query(
             "INSERT INTO achievement VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, $11)",
         )
         .bind(achievement_id)
@@ -348,7 +348,30 @@ pub async fn set_achievements(
         .bind(achievement.rarity_level_description())
         .bind(achievement.rarity_level_slug())
         .execute(&mut *transaction)
-        .await?;
+        .await;
+
+        if insert_req.is_err() {
+            // If entry already exist, update it if it's not pending an update
+            sqlx::query(
+                r"UPDATE achievement SET name=?, description=?,
+                visible_while_locked=?,
+                unlock_time=?, image_url_locked=?, image_url_unlocked=?,
+                rarity=?, rarity_level_description=?, rarity_level_slug=?
+                WHERE id=? AND changed=0",
+            )
+            .bind(achievement.name())
+            .bind(achievement.description())
+            .bind(*achievement.visible() as u32)
+            .bind(achievement.date_unlocked())
+            .bind(achievement.image_url_locked())
+            .bind(achievement.image_url_unlocked())
+            .bind(achievement.rarity())
+            .bind(achievement.rarity_level_description())
+            .bind(achievement.rarity_level_slug())
+            .bind(achievement_id)
+            .execute(&mut *transaction)
+            .await?;
+        }
     }
 
     let previously_retrieved =
@@ -503,10 +526,10 @@ where
         .fetch_all(&mut *connection)
         .await?;
 
-    let leaderboards = data.iter().map(|row| row_to_leaderboard_def(row));
+    let leaderboards = data.iter().map(row_to_leaderboard_def);
     if let Some((_, value)) = params.into_iter().find(|(k, _v)| k.as_ref() == "keys") {
         let value = value.to_string();
-        let ids: Vec<&str> = value.split(",").collect();
+        let ids: Vec<&str> = value.split(',').collect();
         return Ok(leaderboards
             .filter(|x| ids.contains(&x.id().as_str()))
             .collect());
@@ -554,6 +577,21 @@ pub async fn get_leaderboard_score(
     Ok((score, rank, entry_total_count, force, details))
 }
 
+pub async fn set_leaderboad_changed(
+    context: &HandlerContext,
+    leaderboard_id: &str,
+    changed: bool,
+) -> Result<(), Error> {
+    let mut connection = context.db_connection().acquire().await?;
+    sqlx::query("UPDATE leaderboard SET changed=$1 WHERE id = $2")
+        .bind(changed)
+        .bind(leaderboard_id)
+        .execute(&mut *connection)
+        .await?;
+
+    Ok(())
+}
+
 pub async fn set_leaderboard_score(
     context: &HandlerContext,
     leaderboard_id: &str,
@@ -562,15 +600,30 @@ pub async fn set_leaderboard_score(
     details: &str,
 ) -> Result<(), Error> {
     let mut connection = context.db_connection().acquire().await?;
-    sqlx::query(
-        "UPDATE leaderboard SET changed=1, score=$1, force_update=$2, details=$3 WHERE id = $4",
-    )
-    .bind(score)
-    .bind(force as u8)
-    .bind(details)
-    .bind(leaderboard_id)
-    .execute(&mut *connection)
-    .await?;
+    sqlx::query("UPDATE leaderboard SET score=$1, force_update=$2, details=$3 WHERE id = $4")
+        .bind(score)
+        .bind(force as u8)
+        .bind(details)
+        .bind(leaderboard_id)
+        .execute(&mut *connection)
+        .await?;
+
+    Ok(())
+}
+
+pub async fn set_leaderboard_rank(
+    context: &HandlerContext,
+    leaderboard_id: &str,
+    rank: u32,
+    total_entries: u32,
+) -> Result<(), Error> {
+    let mut connection = context.db_connection().acquire().await?;
+    sqlx::query("UPDATE leaderboard SET score=$1, entry_total_count=$2 WHERE id = $3")
+        .bind(rank)
+        .bind(total_entries)
+        .bind(leaderboard_id)
+        .execute(&mut *connection)
+        .await?;
 
     Ok(())
 }
