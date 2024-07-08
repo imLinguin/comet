@@ -2,7 +2,7 @@ use async_zip::base::read::mem::ZipFileReader;
 use derive_getters::Getters;
 use futures_util::io;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, fs::Permissions, os::unix::fs::PermissionsExt, path::PathBuf};
+use std::{fmt::Display, path::PathBuf};
 use tokio::fs;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 
@@ -121,6 +121,7 @@ pub async fn get_component(
         io::copy(&mut reader, &mut file_handle.compat_write()).await?;
         #[cfg(unix)]
         if let Some(permissions) = reader.entry().unix_permissions() {
+            use std::{fs::Permissions, os::unix::fs::PermissionsExt};
             let permissions = Permissions::from_mode(permissions as u32);
             fs::set_permissions(file_path, permissions).await?;
         }
