@@ -481,8 +481,8 @@ pub async fn update_leaderboards(
             _ => "SORT_METHOD_ASCENDING",
         };
         let display_type = match def.display_type().as_str() {
-            "time_seconds" => "DISPLAY_TYPE_TIME_SECONDS",
-            "time_milliseconds" => "DISPLAY_TYPE_TIME_MILLISECONDS",
+            "seconds" => "DISPLAY_TYPE_TIME_SECONDS",
+            "milliseconds" => "DISPLAY_TYPE_TIME_MILLISECONDS",
             _ => "DISPLAY_TYPE_NUMERIC",
         };
         if !ids.contains(def.id()) {
@@ -525,8 +525,8 @@ fn row_to_leaderboard_def(row: &SqliteRow) -> LeaderboardDefinition {
     }
     .to_string();
     let display_type = match display_type.as_str() {
-        "DISPLAY_TYPE_TIME_SECONDS" => "time_seconds",
-        "DISPLAY_TYPE_TIME_MILLISECONDS" => "time_milliseconds",
+        "DISPLAY_TYPE_TIME_SECONDS" => "seconds",
+        "DISPLAY_TYPE_TIME_MILLISECONDS" => "milliseconds",
         _ => "numeric",
     }
     .to_string();

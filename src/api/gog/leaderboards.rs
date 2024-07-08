@@ -173,3 +173,49 @@ pub async fn post_leaderboard_score(
     let data = response.json().await?;
     Ok(data)
 }
+
+#[derive(Serialize)]
+struct CreateLeaderboardPayload {
+    pub key: String,
+    pub name: String,
+    pub sort_method: String,
+    pub display_type: String,
+}
+
+pub async fn create_leaderboard(
+    context: &HandlerContext,
+    reqwest_client: &Client,
+    key: String,
+    name: String,
+    sort_method: String,
+    display_type: String,
+) -> Result<String, reqwest::Error> {
+    let lock = context.token_store().lock().await;
+    let client_id = context.client_id().clone().unwrap();
+    let token = lock.get(&client_id).unwrap().clone();
+    drop(lock);
+
+    let payload = CreateLeaderboardPayload {
+        key,
+        name,
+        sort_method,
+        display_type,
+    };
+
+    let url = format!(
+        "https://gameplay.gog.com/clients/{}/leaderboards",
+        client_id
+    );
+
+    let response = reqwest_client
+        .post(url)
+        .json(&payload)
+        .bearer_auth(token.access_token)
+        .send()
+        .await?;
+    let response = response.error_for_status()?;
+
+    let definition: LeaderboardDefinition = response.json().await?;
+
+    Ok(definition.id)
+}

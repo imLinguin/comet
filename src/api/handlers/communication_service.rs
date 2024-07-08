@@ -65,6 +65,8 @@ pub async fn entry_point(
         get_leaderboard_entries_for_users(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::SET_LEADERBOARD_SCORE_REQUEST.value() {
         set_leaderboard_score(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::CREATE_LEADERBOARD_REQUEST.value() {
+        create_leaderboard(payload, context, user_info, reqwest_client).await
     } else {
         warn!(
             "Unhandled communication service message type {}",
@@ -82,7 +84,6 @@ async fn library_info_request(
     _user_info: Arc<UserInfo>,
     _reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
-    log::warn!("LIBRARY_INFO_REQUEST is unstable, it may result in weird behavior");
     let request_data = LibraryInfoRequest::parse_from_bytes(&payload.payload);
     let request_data = request_data
         .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
@@ -95,6 +96,7 @@ async fn library_info_request(
         CompilerType::COMPILER_TYPE_MSVC => {
             REDISTS_STORAGE.join(format!("peer/msvc-{}", compiler_version))
         }
+        #[cfg(target_os = "macos")]
         CompilerType::COMPILER_TYPE_CLANG => REDISTS_STORAGE.join("peer"),
         _ => REDISTS_STORAGE.join("peer/msvc-18"),
     };
@@ -824,5 +826,62 @@ async fn set_leaderboard_score(
         .write_to_bytes()
         .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
     header.set_size(payload.len().try_into().unwrap());
+    Ok(ProtoPayload { header, payload })
+}
+
+async fn create_leaderboard(
+    proto_payload: &ProtoPayload,
+    context: &mut HandlerContext,
+    _user_info: Arc<UserInfo>,
+    reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    let mut request = CreateLeaderboardRequest::parse_from_bytes(&proto_payload.payload)
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+
+    let key = request.take_key();
+    let name = request.take_name();
+    let sort_method = match request.sort_method() {
+        SortMethod::SORT_METHOD_ASCENDING => "asc",
+        SortMethod::SORT_METHOD_DESCENDING => "desc",
+        _ => unreachable!("Client should define valid sort method"),
+    }
+    .to_string();
+    let display_type = match request.display_type() {
+        DisplayType::DISPLAY_TYPE_NUMERIC => "numeric",
+        DisplayType::DISPLAY_TYPE_TIME_SECONDS => "seconds",
+        DisplayType::DISPLAY_TYPE_TIME_MILLISECONDS => "milliseconds",
+        DisplayType::DISPLAY_TYPE_UNDEFINED => {
+            unreachable!("Client should define a valid display type")
+        }
+    }
+    .to_string();
+
+    let leaderboard_id = gog::leaderboards::create_leaderboard(
+        context,
+        reqwest_client,
+        key,
+        name,
+        sort_method,
+        display_type,
+    )
+    .await
+    .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+
+    let mut response = CreateLeaderboardResponse::new();
+    response.set_leaderboard_id(leaderboard_id.parse().unwrap());
+
+    let mut header = Header::new();
+    header.set_type(
+        MessageType::CREATE_LEADERBOARD_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+
+    let payload = response
+        .write_to_bytes()
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+    header.set_size(payload.len().try_into().unwrap());
+
     Ok(ProtoPayload { header, payload })
 }

@@ -13,15 +13,15 @@ Project is continuation of Yepoleb's work https://gitlab.com/Yepoleb/comet/ but 
 
 ## Supported Requests
 
-Excluding Overlay, and Cloud Sync related.
+> [!NOTE] 
+> The following list excludes calls that aren't made by the game
 
-- [x] LIBRARY_INFO_REQUEST (unstable)
+- [x] LIBRARY_INFO_REQUEST
 - [x] AUTH_INFO_REQUEST
 - [x] GET_USER_STATS_REQUEST
 - [x] SUBSCRIBE_TOPIC_REQUEST
 - [x] UPDATE_USER_STAT_REQUEST
 - [x] DELETE_USER_STATS_REQUEST
-- [ ] GET_GLOBAL_STATS_REQUEST
 - [x] GET_USER_ACHIEVEMENTS_REQUEST
 - [x] UNLOCK_USER_ACHIEVEMENT_REQUEST
 - [x] CLEAR_USER_ACHIEVEMENT_REQUEST
@@ -32,13 +32,11 @@ Excluding Overlay, and Cloud Sync related.
 - [x] GET_LEADERBOARD_ENTRIES_AROUND_USER_REQUEST
 - [x] GET_LEADERBOARD_ENTRIES_FOR_USERS_REQUEST
 - [x] SET_LEADERBOARD_SCORE_REQUEST
-- [ ] AUTH_STATE_CHANGE_NOTIFICATION
-- [ ] CREATE_LEADERBOARD_REQUEST
+- [x] CREATE_LEADERBOARD_REQUEST
+- [ ] GET_GLOBAL_STATS_REQUEST
 - [ ] OVERLAY_STATE_CHANGE_NOTIFICATION
 
 ## How to use
-
-Currently service supports small amount of calls, but these are enough to play Gwent for example.
 
 Check [running](#running)
 

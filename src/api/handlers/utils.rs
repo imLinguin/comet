@@ -5,7 +5,7 @@ use crate::api::handlers::error::{MessageHandlingError, MessageHandlingErrorKind
 use crate::api::structs::IDType;
 use crate::db;
 use base64::prelude::*;
-use log::{debug, warn};
+use log::warn;
 use protobuf::{Enum, Message};
 use reqwest::Client;
 use tokio::{io::AsyncReadExt, net::TcpStream};
@@ -31,11 +31,6 @@ pub async fn parse_payload(
 
     let size: usize = header.size().try_into().unwrap();
     buffer.resize(size, 0);
-    debug!(
-        "Reading payload size {} to buffer of size {}",
-        size,
-        buffer.len()
-    );
     socket.read_exact(&mut buffer).await?;
     Ok(ProtoPayload {
         header,
