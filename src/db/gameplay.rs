@@ -246,6 +246,17 @@ pub async fn set_stat_int(context: &HandlerContext, stat_id: i64, value: i32) ->
     Ok(())
 }
 
+pub async fn reset_stats(context: &HandlerContext) -> Result<(), Error> {
+    let database = context.db_connection();
+    let mut connection = database.acquire().await?;
+
+    sqlx::query("UPDATE float_statistic SET value=default_value; UPDATE int_statistic SET value=default_value; UPDATE statistic SET changed=0")
+        .execute(&mut *connection)
+        .await?;
+
+    Ok(())
+}
+
 pub async fn has_achievements(database: SqlitePool) -> bool {
     let connection = database.acquire().await;
     if connection.is_err() {
@@ -426,12 +437,22 @@ pub async fn set_achievement(
     let database = context.db_connection();
     let mut connection = database.acquire().await?;
 
-    sqlx::query("UPDATE achievement SET changed=1, unlock_time=$1 WHERE id=$2")
+    sqlx::query("UPDATE achievement SET changed=1, unlock_time=? WHERE id=?")
         .bind(date_unlocked)
         .bind(achievement_id)
         .execute(&mut *connection)
         .await?;
 
+    Ok(())
+}
+
+pub async fn reset_achievements(context: &HandlerContext) -> Result<(), Error> {
+    let database = context.db_connection();
+    let mut connection = database.acquire().await?;
+
+    sqlx::query("UPDATE achievement SET changed=0, unlock_time=NULL")
+        .execute(&mut *connection)
+        .await?;
     Ok(())
 }
 

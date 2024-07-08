@@ -59,10 +59,9 @@ where
 
     let new_url = Url::parse_with_params(&url, params).unwrap();
 
-    let auth_header = String::from("Bearer ") + &token.access_token;
     let response = reqwest_client
         .get(new_url)
-        .header("Authorization", &auth_header)
+        .bearer_auth(token.access_token)
         .header("X-Gog-Lc", "en-US") // TODO: Handle languages
         .send()
         .await?;
@@ -111,10 +110,9 @@ where
 
     let new_url = Url::parse_with_params(&url, params).unwrap();
 
-    let auth_header = String::from("Bearer ") + &token.access_token;
     let response = reqwest_client
         .get(new_url)
-        .header("Authorization", &auth_header)
+        .bearer_auth(token.access_token)
         .header("X-Gog-Lc", "en-US") // TODO: Handle languages
         .send()
         .await?;
@@ -164,11 +162,10 @@ pub async fn post_leaderboard_score(
         details,
     };
 
-    let auth_header = String::from("Bearer ") + &token.access_token;
     let response = reqwest_client
         .post(url)
         .json(&payload)
-        .header("Authorization", &auth_header)
+        .bearer_auth(token.access_token)
         .send()
         .await?;
 

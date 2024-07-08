@@ -85,10 +85,9 @@ pub async fn fetch_stats(
         "https://gameplay.gog.com/clients/{}/users/{}/stats",
         client_id, user_id
     );
-    let auth_header = String::from("Bearer ") + &token.access_token;
     let response = reqwest_client
         .get(url)
-        .header("Authorization", &auth_header)
+        .bearer_auth(token.access_token)
         .send()
         .await
         .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
@@ -143,11 +142,35 @@ pub async fn update_stat(
         FieldValue::Int { value, .. } => UpdateStatRequestValueType::Int(value),
     };
     let payload = UpdateStatRequest::new(value_type);
-    let auth_header = String::from("Bearer ") + &token.access_token;
     let response = reqwest_client
         .post(url)
         .json(&payload)
-        .header("Authorization", auth_header)
+        .bearer_auth(token.access_token)
+        .send()
+        .await?;
+
+    response.error_for_status()?;
+    Ok(())
+}
+
+pub async fn delete_stats(
+    context: &HandlerContext,
+    reqwest_client: &Client,
+    user_id: &str,
+) -> Result<(), Error> {
+    let lock = context.token_store().lock().await;
+    let client_id = context.client_id().clone().unwrap();
+    let token = lock.get(&client_id).unwrap().clone();
+    drop(lock);
+
+    let url = format!(
+        "https://gameplay.gog.com/clients/{}/users/{}/stats",
+        &client_id, user_id,
+    );
+
+    let response = reqwest_client
+        .delete(url)
+        .bearer_auth(token.access_token)
         .send()
         .await?;
 

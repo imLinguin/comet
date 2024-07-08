@@ -114,7 +114,7 @@ async fn main() {
             tokio::time::sleep(Duration::from_secs(retries * 5)).await;
             retries += 1;
 
-            let result_win = api::gog::components::get_peer(
+            let result_win = api::gog::components::get_component(
                 &client_clone,
                 paths::REDISTS_STORAGE.clone(),
                 api::gog::components::Platform::Windows,
@@ -122,7 +122,7 @@ async fn main() {
             )
             .await;
             #[cfg(target_os = "macos")]
-            let result_mac = api::gog::components::get_peer(
+            let result_mac = api::gog::components::get_component(
                 &client_clone,
                 paths::REDISTS_STORAGE.clone(),
                 api::gog::components::Platform::Mac,
@@ -213,7 +213,7 @@ async fn main() {
                 }
             }
             SubCommand::Overlay => {
-                if let Err(err) = api::gog::components::get_peer(
+                if let Err(err) = api::gog::components::get_component(
                     &reqwest_client,
                     paths::REDISTS_STORAGE.clone(),
                     api::gog::components::Platform::Windows,

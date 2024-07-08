@@ -8,7 +8,7 @@ Note: that means it can't and won't replace Communication Service in official cl
 
 This will provide minimal and platform-agnostic SDK. For use in game launchers like Heroic or Lutris
 
-Project is continuation of Yepoleb's work [https://gitlab.com/Yepoleb/comet/](https://gitlab.com/Yepoleb/comet/) but in
+Project is continuation of Yepoleb's work https://gitlab.com/Yepoleb/comet/ but in
 ~~Python~~ [now in Rust](https://github.com/imLinguin/comet/issues/15)
 
 ## Supported Requests
@@ -20,19 +20,19 @@ Excluding Overlay, and Cloud Sync related.
 - [x] GET_USER_STATS_REQUEST
 - [x] SUBSCRIBE_TOPIC_REQUEST
 - [x] UPDATE_USER_STAT_REQUEST
-- [ ] DELETE_USER_STATS_REQUEST
+- [x] DELETE_USER_STATS_REQUEST
 - [ ] GET_GLOBAL_STATS_REQUEST
 - [x] GET_USER_ACHIEVEMENTS_REQUEST
 - [x] UNLOCK_USER_ACHIEVEMENT_REQUEST
 - [x] CLEAR_USER_ACHIEVEMENT_REQUEST
-- [ ] DELETE_USER_ACHIEVEMENTS_REQUEST
+- [x] DELETE_USER_ACHIEVEMENTS_REQUEST
 - [x] GET_LEADERBOARDS_REQUEST
+- [x] GET_LEADERBOARDS_BY_KEY_REQUEST
 - [x] GET_LEADERBOARD_ENTRIES_GLOBAL_REQUEST
 - [x] GET_LEADERBOARD_ENTRIES_AROUND_USER_REQUEST
 - [x] GET_LEADERBOARD_ENTRIES_FOR_USERS_REQUEST
 - [x] SET_LEADERBOARD_SCORE_REQUEST
 - [ ] AUTH_STATE_CHANGE_NOTIFICATION
-- [x] GET_LEADERBOARDS_BY_KEY_REQUEST
 - [ ] CREATE_LEADERBOARD_REQUEST
 - [ ] OVERLAY_STATE_CHANGE_NOTIFICATION
 
@@ -105,7 +105,7 @@ Reverse engineered protobuf definitions are available here: https://github.com/Y
 
 ## Debugging SDK Client
 
-In order to dump logging from SDK client download [GalaxyPeer.ini](https://items.gog.com/GalaxyPeer.zip),
+In order to dump logging from SDK client (the game) download [GalaxyPeer.ini](https://items.gog.com/GalaxyPeer.zip),
 when placed next to game .exe it will write GalaxyPeer.log when the game is running.
 
 > [!WARNING]  

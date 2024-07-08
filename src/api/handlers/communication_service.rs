@@ -43,12 +43,16 @@ pub async fn entry_point(
         get_user_stats(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::UPDATE_USER_STAT_REQUEST.value() {
         update_user_stat(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::DELETE_USER_STATS_REQUEST.value() {
+        delete_user_stats(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_USER_ACHIEVEMENTS_REQUEST.value() {
         get_user_achievements(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::UNLOCK_USER_ACHIEVEMENT_REQUEST.value() {
         unlock_user_achievement(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::CLEAR_USER_ACHIEVEMENT_REQUEST.value() {
         clear_user_achievement(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::DELETE_USER_ACHIEVEMENTS_REQUEST.value() {
+        delete_user_achievements(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_LEADERBOARDS_REQUEST.value() {
         get_leaderboards(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::GET_LEADERBOARDS_BY_KEY_REQUEST.value() {
@@ -378,6 +382,34 @@ async fn update_user_stat(
     })
 }
 
+async fn delete_user_stats(
+    _proto_payload: &ProtoPayload,
+    context: &mut HandlerContext,
+    user_info: Arc<UserInfo>,
+    reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    gog::stats::delete_stats(context, reqwest_client, &user_info.galaxy_user_id)
+        .await
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+
+    db::gameplay::reset_stats(context)
+        .await
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+
+    let mut header = Header::new();
+    header.set_type(
+        MessageType::DELETE_USER_STATS_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+
+    Ok(ProtoPayload {
+        header,
+        payload: Vec::new(),
+    })
+}
+
 async fn get_user_achievements(
     _proto_payload: &ProtoPayload,
     context: &mut HandlerContext,
@@ -537,6 +569,35 @@ async fn clear_user_achievement(
         payload: Vec::new(),
     })
 }
+
+async fn delete_user_achievements(
+    _proto_payload: &ProtoPayload,
+    context: &mut HandlerContext,
+    user_info: Arc<UserInfo>,
+    reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    gog::achievements::delete_achievements(context, reqwest_client, &user_info.galaxy_user_id)
+        .await
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+
+    db::gameplay::reset_achievements(context)
+        .await
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+
+    let mut header = Header::new();
+    header.set_type(
+        MessageType::DELETE_USER_ACHIEVEMENTS_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+
+    Ok(ProtoPayload {
+        header,
+        payload: Vec::new(),
+    })
+}
+
 async fn get_leaderboards(
     _proto_payload: &ProtoPayload,
     context: &mut HandlerContext,

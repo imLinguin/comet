@@ -2,7 +2,7 @@ use async_zip::base::read::mem::ZipFileReader;
 use derive_getters::Getters;
 use futures_util::io;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, path::PathBuf};
+use std::{fmt::Display, fs::Permissions, os::unix::fs::PermissionsExt, path::PathBuf};
 use tokio::fs;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 
@@ -67,7 +67,7 @@ impl Display for Component {
     }
 }
 
-pub async fn get_peer(
+pub async fn get_component(
     reqwest_client: &Client,
     dest_path: PathBuf,
     platform: Platform,
@@ -113,14 +113,21 @@ pub async fn get_peer(
         let file_path = dest_path.join(file.path());
         let parent = file_path.parent().unwrap();
         if !parent.exists() {
-            fs::create_dir_all(parent)
-                .await
-                .expect("Failed to create directory");
+            fs::create_dir_all(parent).await?;
         }
 
-        let mut reader = zip.reader_without_entry(0).await?;
-        let file_handle = fs::File::create(file_path).await?;
+        let mut reader = zip.reader_with_entry(0).await?;
+        let file_handle = fs::File::create(&file_path).await?;
         io::copy(&mut reader, &mut file_handle.compat_write()).await?;
+        if let Some(permissions) = reader.entry().unix_permissions() {
+            let permissions = Permissions::from_mode(permissions as u32);
+            fs::set_permissions(file_path, permissions).await?;
+        }
+    }
+
+    #[cfg(unix)]
+    for symlink in manifest.symlinks() {
+        fs::symlink(symlink.target(), dest_path.join(symlink.path())).await?;
     }
 
     fs::write(version_path, manifest.version()).await?;

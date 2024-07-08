@@ -79,10 +79,9 @@ pub async fn fetch_achievements(
         "https://gameplay.gog.com/clients/{}/users/{}/achievements",
         client_id, user_id
     );
-    let auth_header = String::from("Bearer ") + &token.access_token;
     let response = reqwest_client
         .get(url)
-        .header("Authorization", &auth_header)
+        .bearer_auth(token.access_token)
         .header("X-Gog-Lc", "en-US") // TODO: Handle languages
         .send()
         .await
@@ -123,14 +122,37 @@ pub async fn set_achievement(
         &client_id, user_id, achievement_id
     );
     let body = SetAchievementRequest::new(date_unlocked);
-    let auth_header = String::from("Bearer ") + &token.access_token;
 
     let response = reqwest_client
         .post(url)
         .json(&body)
-        .header("Authorization", &auth_header)
+        .bearer_auth(token.access_token)
         .send()
         .await?;
     response.error_for_status()?;
+    Ok(())
+}
+
+pub async fn delete_achievements(
+    context: &HandlerContext,
+    reqwest_client: &Client,
+    user_id: &str,
+) -> Result<(), Error> {
+    let lock = context.token_store().lock().await;
+    let client_id = context.client_id().clone().unwrap();
+    let token = lock.get(&client_id).unwrap().clone();
+    drop(lock);
+    let url = format!(
+        "https://gameplay.gog.com/clients/{}/users/{}/achievements",
+        &client_id, user_id
+    );
+
+    let response = reqwest_client
+        .delete(url)
+        .bearer_auth(token.access_token)
+        .send()
+        .await?;
+    response.error_for_status()?;
+
     Ok(())
 }
