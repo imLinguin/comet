@@ -119,6 +119,7 @@ pub async fn get_component(
         let mut reader = zip.reader_with_entry(0).await?;
         let file_handle = fs::File::create(&file_path).await?;
         io::copy(&mut reader, &mut file_handle.compat_write()).await?;
+        #[cfg(unix)]
         if let Some(permissions) = reader.entry().unix_permissions() {
             let permissions = Permissions::from_mode(permissions as u32);
             fs::set_permissions(file_path, permissions).await?;
