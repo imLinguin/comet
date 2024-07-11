@@ -1,5 +1,8 @@
 # Comet
 [![Build nightly](https://github.com/imLinguin/comet/actions/workflows/build.yml/badge.svg)](https://github.com/imLinguin/comet/actions/workflows/build.yml)
+![Version](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FimLinguin%2Fcomet%2Fmain%2FCargo.toml&query=%24.package.version&label=version&labelColor=darkslategrey)
+[![Static Badge](https://img.shields.io/badge/Steam%20Deck%20Usage%20Guide-darkslategrey?logo=steamdeck)](docs/steamdeck/USAGE.md)
+
 
 Open Source implementation of GOG Galaxy's Communication Service
 
@@ -10,6 +13,7 @@ This will provide minimal and platform-agnostic SDK. For use in game launchers l
 
 Project is continuation of Yepoleb's work https://gitlab.com/Yepoleb/comet/ but in
 ~~Python~~ [now in Rust](https://github.com/imLinguin/comet/issues/15)
+
 
 ## Supported Requests
 

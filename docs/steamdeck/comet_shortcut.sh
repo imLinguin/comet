@@ -2,11 +2,11 @@
 
 # Comet shortcut script
 # 
-# Meant for Heroic generated non-Steam game shortcuts
-# Minor tweaks necessary in the shortcut:
-# - Move the launch options (run com.heroicgameslauncher.hgl ...) of the shortcut into the target, next to "flatpak"
-# - Put the following in the launch options of the shortcut:
-#       "<location of this comet_shortcut.sh>" %command%
+# Meant for usage as a pre-launch script
+# Although the script can be used as a wrapper as well
+# Heroic Game settings > Advanced > Scripts > Select a script to run before the game is launched  
+# Make sure the script is in location that's always accessible by Heroic
+# such as /home/deck/Documents
 
 # Variables
 
@@ -15,14 +15,20 @@ gog_username=username
 path_to_comet='/home/deck/Documents/comet/comet'
 # Uncomment if debug logs are wanted to be visible in Comet
 #export COMET_LOG=debug
+# A timeout after which comet will quit when last client disconnects 
+export COMET_IDLE_WAIT=5 # 15 seconds is the default
 
-# Running Comet as a separate Konsole window
-konsole -e "$path_to_comet --from-heroic --username $gog_username" &
+# Running Comet as a background app 
+# If you want to use this script in Lutris change --from-heroic to --from-lutris
+exec "$path_to_comet" --from-heroic --username "$gog_username" -q &
 
-# Grabbing process ID of Comet
-comet_pid=$!
+# If parameters were provided we are in wrapper mode
+if [ $# -ne 0 ]; then
+    comet_pid=$!
+    exec "$@" &
+    game_pid=$!
+    echo "Waiting for $comet_pid and $game_pid"
+    trap 'kill $game_pid; wait $game_pid $comet_pid' SIGINT SIGTERM
+    wait $game_pid $comet_pid
+fi
 
-# Running the game shortcut under the same process ID as Comet
-# Necessary to put Comet and the game in "one opened game" on the Steam Deck's Game Mode 
-
-exec -a "$comet_pid" "$@"
