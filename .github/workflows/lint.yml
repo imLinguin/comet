@@ -4,6 +4,8 @@ on:
   pull_request:
     branches:
       - main
+    paths:
+      - "**.rs"
 
 env:
   CARGO_TERM_COLOR: always
@@ -18,4 +20,4 @@ jobs:
       - name: Check formatting
         run: cargo fmt --check -v
       - name: Clippy
-        run: cargo clippy -all-targets --all-features
+        run: cargo clippy --all-targets --all-features
