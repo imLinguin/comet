@@ -83,6 +83,8 @@ jobs:
     steps:
       - name: Download builds
         uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
 
       - name: Create draft
         uses: softprops/action-gh-release@v2
