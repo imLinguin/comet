@@ -1,10 +1,15 @@
-name: Build nightly
+name: Build
 
 on:
   workflow_dispatch:
   push:
+    tags:
+      - "v*.*.*"
     branches:
       - main
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
   build-dummy:
@@ -13,7 +18,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install meson
         run: python -m pip install meson ninja
-      - name: Setup 
+      - name: Setup
         working-directory: dummy-service
         run: meson setup build
       - name: Build
@@ -58,17 +63,31 @@ jobs:
           name: dummy-GalaxyCommunication.exe
           path: dummy-service
 
-      - name: Copy binaries
-        shell: bash
-        run: cp target/${{ matrix.target }}/release/comet* .
+      - name: Create archives
+        id: archive-gen
+        run: ci/package-build.sh ${{ matrix.target }}
 
-      - name: Generic packaging
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: comet-${{ matrix.target }}
-          path: |
-            comet*
-            !comet.d
-            dummy-service/
-            !dummy-service/*.c
-            ${{ contains(matrix.target, 'linux-gnu') && 'docs/steamdeck' }}
+          path: ${{ steps.archive-gen.outputs.archive_name }}
+
+  draft-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: build
+    steps:
+      - name: Download builds
+        uses: actions/download-artifact@v4
+
+      - name: Create draft
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: |
+            *.zip
+            *.tar.gz

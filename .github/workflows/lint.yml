@@ -5,6 +5,9 @@ on:
     branches:
       - main
 
+env:
+  CARGO_TERM_COLOR: always
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -14,3 +17,5 @@ jobs:
           submodules: "recursive"
       - name: Check formatting
         run: cargo fmt --check -v
+      - name: Clippy
+        run: cargo clippy -all-targets --all-features
