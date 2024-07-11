@@ -65,6 +65,7 @@ jobs:
 
       - name: Create archives
         id: archive-gen
+        shell: bash
         run: ci/package-build.sh ${{ matrix.target }}
 
       - name: Upload artifact

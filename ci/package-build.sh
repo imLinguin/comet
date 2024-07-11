@@ -12,7 +12,7 @@ if [ "$RUNNER_OS" = "Linux" ]; then
     params='docs/steamdeck'
 fi
 
-cp "target/$target/release/comet*" .
+cp "target/$target/release/comet"* .
 
 if [ "$RUNNER_OS" = "Windows" ]; then
     7z a "comet-$target.zip" comet.exe dummy-service/*{.exe,.md} 
