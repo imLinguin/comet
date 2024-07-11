@@ -9,17 +9,16 @@ This instruction also applies for desktop users who want to use comet in launche
 
 ## Installation steps
 
-1. Make sure you are logged into GOG on Heroic Games Launcher.
+1. Make sure you are logged into GOG on your launcher of choice.
 2. Download the latest release of Comet from [the latest release](https://github.com/imLinguin/comet/releases/latest) or [the latest GitHub Actions run](https://github.com/imLinguin/comet/actions/workflows/build.yml) labelled `comet-x86_64-unknown-linux-gnu` (a 64bit executable for Linux).
 3. Extract the downloaded archive to a desired place.
    > It is recommended to have the `comet` binary put into the `~/Documents` directory. Otherwise: choose any directory where Heroic has access to.
-4. In Heroic Games Launcher, set the `comet_shortcut.sh` as a script that is going to be ran before the game (Game Settings > Advanced > Scripts)
-5. Open the `comet_shortcut.sh` file with Kate (right click on the file > Open with Kate), and edit the following values:
+4. Open the `comet_shortcut.sh` file with Kate (right click on the file > Open with Kate), and edit the following values:
     - `gog_username`
         > Change the `username` value after `=` to your GOG username. If your name includes any special characters make sure to quote the username accordingly
     - `path_to_comet`
         > Change the `path_to_comet` value after `=` (while keeping the `'` characters in tact) to the full file path of the `comet` binary.
-6. Start any game that has the shortcut script included (see step 7.) to play the game with achievement support!
+5. Start any game that has the shortcut script included (see instructions for [Heroic](#use-with-heroic) or [Lutris](#use-with-lutris)) to play the game with achievement support!
 
 > [!NOTE]
 > On the startup comet downloads `GalaxyPeer` libraries (~100 MiB) into `$XDG_DATA_HOME/comet/redist/peer`.
@@ -29,12 +28,13 @@ This instruction also applies for desktop users who want to use comet in launche
 
 ## Use with Heroic 
 1. Install Comet and its shortcut script. (See the installation steps above.)
-2. Change the Heroic game settings to run the shortcut script before the game launch.
-3. Launch the game through either Desktop or Game Mode!
-4. **Directly exiting the game through Steam will not sync your GOG playtime via Heroic!** Make sure to always exit the game via in-game menu.
+2. In Heroic Games Launcher, set the `comet_shortcut.sh` as a script that is going to be ran before the game (Game Settings > Advanced > Scripts)
+4. Launch the game through either Desktop or Game Mode!
+5. **Directly exiting the game through Steam will not sync your GOG playtime via Heroic!** Make sure to always exit the game via in-game menu.
 
 > [!TIP] 
 > Use Heroic's Add to Steam feature for the best experience
+> in accessing your games from the Gaming Mode
 
 ## Use with Lutris
 
@@ -46,6 +46,7 @@ Steps to add a script to Lutris game
 2. Right click on the game and click Configure
 3. Head over to `System options` and enable `Advanced` mode (next to save button)
 4. Scroll down into `Game execution` section and set the path to `comet_shortcut.sh` as Command prefix or Pre-launch script.
+5. Launch the game normally!
 
 > [!TIP] 
 > Setting the script as Command prefix will allow Lutris to wait for both comet and game process.
