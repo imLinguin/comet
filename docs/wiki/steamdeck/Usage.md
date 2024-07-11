@@ -2,9 +2,9 @@
 
 Using Comet with Valve's Steam Deck (running SteamOS) is possible in both Desktop and Game Mode. Comet will only function with games that do support [GOG Galaxy's achievement system](https://www.gog.com/en/games?features=achievements) or any other online related functionality like Leaderboards. **If your game does not work out of the box, check Known Issues below.**
 
-Using `comet_shortcut.sh` will simplify the process of launching Heroic Games Launcher games with Comet in the background. That script works in both Modes.
+Using `comet_shortcut.sh` will simplify the process of launching GOG games from Heroic or Lutris with Comet in the background. That script works in both Modes.
 
-This instruction also applies for desktop users who want to use comet in launchers that do not support comet natively.
+This instruction also applies for desktop users. If you don't use any launcher see the project [README](https://github.com/imLinguin/comet#via-gogdl-cli) for manual credentials management.
 
 
 ## Installation steps
@@ -12,7 +12,7 @@ This instruction also applies for desktop users who want to use comet in launche
 1. Make sure you are logged into GOG on your launcher of choice.
 2. Download the latest release of Comet from [the latest release](https://github.com/imLinguin/comet/releases/latest) or [the latest GitHub Actions run](https://github.com/imLinguin/comet/actions/workflows/build.yml) labelled `comet-x86_64-unknown-linux-gnu` (a 64bit executable for Linux).
 3. Extract the downloaded archive to a desired place.
-   > It is recommended to have the `comet` binary put into the `~/Documents` directory. Otherwise: choose any directory where Heroic has access to.
+   > It is recommended to have the `comet` binary put into the `~/Documents` directory. Otherwise: choose any directory where your app of choice has access to.
 4. Open the `comet_shortcut.sh` file with Kate (right click on the file > Open with Kate), and edit the following values:
     - `gog_username`
         > Change the `username` value after `=` to your GOG username. If your name includes any special characters make sure to quote the username accordingly

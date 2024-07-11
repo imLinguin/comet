@@ -16,13 +16,14 @@ path_to_comet='/home/deck/Documents/comet/comet'
 # Uncomment if debug logs are wanted to be visible in Comet
 #export COMET_LOG=debug
 # A timeout after which comet will quit when last client disconnects 
-export COMET_IDLE_WAIT=5 # 15 seconds is the default
+export COMET_IDLE_WAIT=5 # comet has a 15 seconds as the default, we make it shorter here, feel free to tweak it to your liking
 
 # Running Comet as a background app 
 # If you want to use this script in Lutris change --from-heroic to --from-lutris
 exec "$path_to_comet" --from-heroic --username "$gog_username" -q &
 
-# If parameters were provided we are in wrapper mode
+# This part allows using this script as a wrapper
+# e.g comet_shortcut.sh wine game.exe
 if [ $# -ne 0 ]; then
     comet_pid=$!
     exec "$@" &
