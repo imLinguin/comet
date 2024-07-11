@@ -4,11 +4,15 @@ Using Comet with Valve's Steam Deck (running SteamOS) is possible in both Deskto
 
 Using `comet_shortcut.sh` will simplify the process of launching Heroic Games Launcher games with Comet in the background. That script works in both Modes.
 
+This instruction also applies for desktop users who want to use comet in launchers that do not support comet natively.
+
 ## How to Use
 1. Install Comet and its shortcut script. (See the installation steps below.)
 2. Change the Heroic game settings to run the shortcut script before the game launch.
 3. Launch the game through either Desktop or Game Mode!
 4. **Directly exiting the game through Steam will not sync your GOG playtime via Heroic!** Make sure to always exit the game via in-game menu.
+
+Do you use Lutris instead? See [this section](#lutris)
 
 > [!NOTE]
 > On the startup comet downloads `GalaxyPeer` libraries (~100 MiB) into `$XDG_DATA_HOME/comet/redist/peer`.
@@ -21,9 +25,9 @@ Please make sure to report issues if you encounter any.
 
 ## Known Issues
 
-- **Not all GOG achievement games are supported** - some games (e.g. [Cuphead](https://www.gog.com/game/cuphead)) do not support the way Comet currently works on its own, due to some checks performed by SDK used for GOG Galaxy features. 
+- **Not all GOG achievement games are supported out of the box** - some games (e.g. [Cuphead](https://www.gog.com/game/cuphead)) do not support the way Comet works on its own, due to some checks performed by SDK used for GOG Galaxy features. 
   
-  **To solve it**: you will need to install the `GalaxyCommunications` dummy application. (The necessary files (the `.bat` script and the dummy `.exe`) have been included in the Linux artifact.)
+  **To solve it**: you will need to install the `GalaxyCommunications` dummy application. (The necessary files (the `.bat` script and the dummy `.exe`) have been included in the all artifacts.)
 
   1. Keep the `comet` Linux artifact items in a directory Heroic has access to, such as `~/Documents` or `~/Desktop`.
   2. Go to Heroic Games Launcher, to the malfunctioning game's settings screen..
@@ -34,7 +38,7 @@ Please make sure to report issues if you encounter any.
 ## Installation steps
 
 1. Make sure you are logged into GOG on Heroic Games Launcher.
-2. Download the latest release of Comet from [the latest release](https://github.com/imLinguin/comet/releases/latest) [the latest GitHub Actions run](https://github.com/imLinguin/comet/actions/workflows/build.yml) labelled `comet-x86_64-unknown-linux-gnu`.
+2. Download the latest release of Comet from [the latest release](https://github.com/imLinguin/comet/releases/latest) or [the latest GitHub Actions run](https://github.com/imLinguin/comet/actions/workflows/build.yml) labelled `comet-x86_64-unknown-linux-gnu` (a 64bit executable for Linux).
 3. Extract the downloaded archive to a desired place.
    > It is recommended to have the `comet` binary put into the `~/Documents` directory. Otherwise: choose any directory where Heroic has access to.
 6. Mark both `comet_shortcut.sh` and `comet` as `is Executable`. (Right click on the file > Properties > Permissions tab > click on the `Is executable` checkbox.)
@@ -45,3 +49,18 @@ Please make sure to report issues if you encounter any.
     - `path_to_comet`
         > Change the `path_to_comet` value after `=` (while keeping the `'` characters in tact) to the full file path of the `comet` binary.
 9. Start any game that has the shortcut script included (see step 7.) to play the game with achievement support!
+
+## Lutris
+
+If you want to use the same script with Lutris, modify it to include `--from-lutris` instead of `--from-heroic`
+
+Steps to add a script to Lutris game
+
+1. Right click on the game and click Configure
+2. Head over to `System options` and enable `Advanced` mode (next to save button)
+3. Scroll down into Game execution section and set the path to `comet_shortcut.sh` as Command prefix or Pre-launch script.
+
+> [!TIP] 
+> Setting the script as Command prefix will allow Lutris to wait for both comet and game process.
+> Thus it's a recommended way
+
