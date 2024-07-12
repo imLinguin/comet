@@ -12,6 +12,8 @@ pub mod structs {
         pub refresh_token: String,
         #[serde(skip, default = "Utc::now")]
         pub obtain_time: DateTime<Utc>,
+        #[serde(default)]
+        pub scope: String
     }
     impl Token {
         pub fn new(access_token: String, refresh_token: String) -> Self {
@@ -19,6 +21,7 @@ pub mod structs {
                 access_token,
                 refresh_token,
                 obtain_time: Utc::now(),
+                scope: String::new()
             }
         }
     }

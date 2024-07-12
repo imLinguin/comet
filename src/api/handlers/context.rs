@@ -70,6 +70,9 @@ impl HandlerContext {
         client_id: &str,
         user_id: &str,
     ) -> Result<(), sqlx::Error> {
+        if self.db_connected {
+            return Ok(());
+        }
         let connection = db::gameplay::setup_connection(client_id, user_id).await?;
         self.db_connection = Some(connection);
 

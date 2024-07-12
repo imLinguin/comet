@@ -132,6 +132,8 @@ async fn auth_info_request(
 
     let client_id = request_data.client_id();
     let client_secret = request_data.client_secret();
+    let openid = request_data.openid();
+
     if !context.client_identified() {
         context.identify_client(client_id, client_secret);
         info!("Client identified as {} {}", client_id, client_secret);
@@ -153,6 +155,7 @@ async fn auth_info_request(
         client_secret,
         refresh_token.as_str(),
         reqwest_client,
+        openid,
     )
     .await;
 

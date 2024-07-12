@@ -280,6 +280,7 @@ impl NotificationPusherClient {
                         }
                     } else if msg_type == MessageType::MESSAGE_FROM_TOPIC.value() {
                         info!("Recieved message from topic");
+                        log::debug!("Topic message: {:#?}", String::from_utf8_lossy(&msg_data));
                         if let Err(error) = self.topic_sender.send(PusherEvent::Topic(msg_data)) {
                             error!(
                                 "There was an error when forwarding topic message: {}",

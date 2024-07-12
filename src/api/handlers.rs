@@ -180,6 +180,7 @@ async fn sync_routine(
                 client_secret,
                 &token.refresh_token,
                 reqwest_client,
+                !token.scope.is_empty()
             )
             .await;
             match result {

@@ -169,6 +169,7 @@ async fn main() {
                         &client_secret,
                         &refresh_token,
                         &reqwest_client,
+                        false
                     )
                     .await
                     .expect("Failed to obtain credentials");

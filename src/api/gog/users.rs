@@ -7,6 +7,7 @@ pub async fn get_token_for(
     client_secret: &str,
     refresh_token: &str,
     session: &Client,
+    openid: bool,
 ) -> Result<Token, Error> {
     let mut url = reqwest::Url::parse(
         "https://auth.gog.com/token?grant_type=refresh_token&without_new_session=1",
@@ -16,6 +17,10 @@ pub async fn get_token_for(
         .append_pair("client_id", client_id)
         .append_pair("client_secret", client_secret)
         .append_pair("refresh_token", refresh_token);
+
+    if openid {
+        url.query_pairs_mut().append_pair("scope", "openid");
+    }
 
     let result = session
         .get(url)
