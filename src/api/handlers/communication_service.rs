@@ -183,7 +183,7 @@ async fn auth_info_request(
             context.set_online();
         }
         Err(err) => {
-            warn!("There was an error getting the access token");
+            warn!("There was an error getting the access token {:?}", err);
             if let Some(status) = err.status() {
                 // user doesn't own the game
                 if StatusCode::FORBIDDEN == status {
