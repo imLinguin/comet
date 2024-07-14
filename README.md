@@ -1,6 +1,6 @@
 # Comet
 [![Build nightly](https://github.com/imLinguin/comet/actions/workflows/build.yml/badge.svg)](https://github.com/imLinguin/comet/actions/workflows/build.yml)
-![Version](https://img.shields.io/badge/dynamic/toml?url=https%3A%2F%2Fraw.githubusercontent.com%2FimLinguin%2Fcomet%2Fmain%2FCargo.toml&query=%24.package.version&label=version&labelColor=darkslategrey)
+[![Version](https://img.shields.io/github/v/release/imLinguin/comet?label=version)](https://github.com/imLinguin/comet/releases/latest)
 [![Static Badge](https://img.shields.io/badge/Steam%20Deck%20Usage%20Guide-darkslategrey?logo=steamdeck)](docs/steamdeck/USAGE.md)
 
 
