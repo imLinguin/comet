@@ -22,7 +22,7 @@ lazy_static! {
 #[cfg(target_os = "macos")]
 lazy_static! {
     static ref DATA_PATH: PathBuf =
-        PathBuf::from(env::var("HOME").unwrap()).join("Library/Application Support");
+        PathBuf::from(env::var("HOME").unwrap()).join("Library/Application Support/comet");
 }
 
 lazy_static! {
