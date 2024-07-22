@@ -26,10 +26,16 @@ jobs:
         run: meson compile -C build
       - name: Copy files
         run: copy .\dummy-service\build\*.exe .\dummy-service
+      - name: Create a dummy-service archive
+        shell: bash
+        working-directory: ./dummy-service
+        run: 7z a ../dummy-service.zip ./*.{exe,bat}
       - uses: actions/upload-artifact@v4
         with:
           name: dummy-GalaxyCommunication.exe
-          path: dummy-service/*.exe
+          path: |
+            dummy-service/*.exe
+            dummy-service.zip
   build:
     strategy:
       matrix:
