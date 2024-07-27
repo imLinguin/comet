@@ -67,7 +67,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: dummy-GalaxyCommunication.exe
-          path: dummy-service
+          path: .
 
       - name: Copy files
         shell: bash
