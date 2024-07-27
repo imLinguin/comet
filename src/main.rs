@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 
 use clap::{Parser, Subcommand};
 use env_logger::{Builder, Env, Target};
+use futures_util::future::join_all;
 use log::{error, info, warn};
 use reqwest::Client;
 use tokio::net::TcpListener;
@@ -271,6 +272,7 @@ async fn main() {
     };
     let mut ever_connected = false;
     let mut active_clients = 0;
+    let mut handlers = Vec::new();
     loop {
         let (socket, _addr) = tokio::select! {
             accept = listener.accept() => {
@@ -303,7 +305,7 @@ async fn main() {
         let client_exit = client_exit.clone();
         active_clients += 1;
         ever_connected = args.quit;
-        tokio::spawn(async move {
+        handlers.push(tokio::spawn(async move {
             api::handlers::entry_point(
                 socket,
                 cloned_client,
@@ -314,9 +316,10 @@ async fn main() {
             )
             .await;
             let _ = client_exit.send(true);
-        });
+        }));
     }
 
     // Ignore errors, we are exiting
     let _ = pusher_handle.await;
+    join_all(handlers).await;
 }
