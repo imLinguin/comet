@@ -10,9 +10,10 @@ This instruction also applies for desktop users. If you don't use any launcher s
 ## Installation steps
 
 1. Make sure you are logged into GOG on your launcher of choice.
-2. Download the latest release of Comet from [the latest release](https://github.com/imLinguin/comet/releases/latest) or [the latest GitHub Actions run](https://github.com/imLinguin/comet/actions/workflows/build.yml) labelled `comet-x86_64-unknown-linux-gnu` (a 64bit executable for Linux).
+2. Download the latest release of Comet from [the latest release](https://github.com/imLinguin/comet/releases/latest) labelled `steam-deck.zip`.
 3. Extract the downloaded archive to a desired place.
-   > It is recommended to have the `comet` binary put into the `~/Documents` directory. Otherwise: choose any directory where your app of choice has access to.
+   > It is recommended to have the `comet` binary put into the `~/Documents` directory. Otherwise: choose any directory where your app of choice has access to.  
+   > Ensure that the file is Executable in Properties > Permissions
 4. Open the `comet_shortcut.sh` file with Kate (right click on the file > Open with Kate), and edit the following values:
     - `gog_username`
         > Change the `username` value after `=` to your GOG username. If your name includes any special characters make sure to quote the username accordingly
@@ -27,6 +28,10 @@ This instruction also applies for desktop users. If you don't use any launcher s
 
 
 ## Use with Heroic 
+
+> [!NOTE]
+> Starting with Heroic 2.15.0, comet will be setup automatically for every GOG game by Heroic itself.
+
 1. Install Comet and its shortcut script. (See the installation steps above.)
 2. In Heroic Games Launcher, set the `comet_shortcut.sh` as a script that is going to be ran before the game (Game Settings > Advanced > Scripts)
 4. Launch the game through either Desktop or Game Mode!

@@ -1,24 +1,15 @@
 #!/bin/bash
 
 target=$1
-params=''
 
 if [[ -z $target ]]; then
     echo "Target not provided"
     exit 1
 fi
 
-if [ "$RUNNER_OS" = "Linux" ]; then
-    params='docs/steamdeck'
-fi
-
-cp "target/$target/release/comet"* .
-
-if [ "$RUNNER_OS" = "Windows" ]; then
-    7z a "comet-$target.zip" comet.exe dummy-service/*{.exe,.md,.bat} 
-    echo "archive_name=comet-$target.zip" >> "$GITHUB_OUTPUT"
+if [[ -f "target/$target/release/comet" ]]; then
+    cp "target/$target/release/comet" "./comet-$target"
 else 
-    tar -czvf "comet-$target.tar.gz" comet dummy-service/*{.exe,.md,.bat} $params
-    echo "archive_name=comet-$target.tar.gz" >> "$GITHUB_OUTPUT"
+    cp "target/$target/release/comet.exe" "./comet-$target.exe"
 fi
 
