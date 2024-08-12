@@ -42,7 +42,13 @@ Project is continuation of Yepoleb's work https://gitlab.com/Yepoleb/comet/ but 
 
 ## How to use
 
-Check [running](#running)
+Comet integration in game launchers
+
+- Heroic - ✅ an experimental feature enabled by default (as of 2.15.0)
+- Lutris - ❓ planned, no ETA
+- Minigalaxy - ❓ open for Pull Requests 
+
+For manual instructions see [running](#running)
 
 Some client SDK versions require Windows service to be registered, refer to [dummy service](./dummy-service/README.md)
 
