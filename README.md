@@ -58,11 +58,19 @@ You need to obtain `access_token`, `refresh_token` and `user_id` either manually
 
 #### Via [Heroic Games Launcher](https://github.com/Heroic-Games-Launcher/HeroicGamesLauncher)
 
-Log in to GOG within the launcher.
+Log in to GOG within the launcher.  
+Use `--from-heroic` for automatic import.
 
 #### Via [Lutris](https://github.com/lutris/lutris)
 
-Log in to Lutris's GOG source.
+Log in to Lutris's GOG source.  
+Use `--from-lutris` for automatic import.
+
+### Via [wyvern](https://github.com/nicohman/wyvern) (CLI)
+
+Log in to GOG in wyvern  
+Use `--from-wyvern` for automatic import.
+
 
 #### Via [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl) (CLI)
 
@@ -97,6 +105,11 @@ comet --from-heroic --username <USERNAME>
 Or Lutris
 ```
 comet --from-lutris --username <USERNAME>
+```
+
+Or wyvern
+```
+comet --from-wyvern --username <USERNAME>
 ```
 
 Or use the shortcut script provided for non-Steam shortcuts. See the [Steam Deck Usage Guide](docs/steamdeck/USAGE.md).

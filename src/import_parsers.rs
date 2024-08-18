@@ -3,6 +3,8 @@ use crate::constants;
 mod heroic;
 #[cfg(target_os = "linux")]
 mod lutris;
+#[cfg(target_os = "linux")]
+mod wyvern;
 
 pub fn handle_credentials_import(args: &crate::Args) -> (String, String, String) {
     if args.heroic {
@@ -56,6 +58,14 @@ pub fn handle_credentials_import(args: &crate::Args) -> (String, String, String)
             .unwrap()
             .to_owned();
         return (access_token, refresh_token, galaxy_user_id);
+    }
+
+    #[cfg(target_os = "linux")]
+    if args.wyvern {
+        let config = wyvern::load_tokens();
+        let token = config.token;
+
+        return token.dissolve();
     }
 
     let access_token = args.access_token.clone().expect("Access token is required");

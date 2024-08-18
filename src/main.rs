@@ -63,6 +63,15 @@ struct Args {
     lutris: bool,
 
     #[arg(
+        long = "from-wyvern",
+        help = "Load tokens from wyvern",
+        global = true,
+        group = "import"
+    )]
+    #[cfg(target_os = "linux")]
+    wyvern: bool,
+
+    #[arg(
         short,
         long,
         global = true,
