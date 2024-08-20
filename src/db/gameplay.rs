@@ -68,12 +68,12 @@ pub async fn get_statistics(
     let mut connection = database.acquire().await?;
     let mut stats: Vec<Stat> = Vec::new();
     let int_stats = sqlx::query(
-        r#"SELECT s.id, s.key, s.increment_only,
+        "SELECT s.id, s.key, s.increment_only,
         i.value, i.default_value, i.min_value, i.max_value, i.max_change
         FROM int_statistic AS i
         JOIN statistic AS s
         ON s.id = i.id
-        WHERE ($1=1 AND s.changed=1) OR ($1=0 AND 1)"#,
+        WHERE ($1=1 AND s.changed=1) OR ($1=0 AND 1)",
     )
     .bind(only_changed as u8)
     .fetch_all(&mut *connection)
@@ -139,10 +139,6 @@ pub async fn set_statistics(database: SqlitePool, stats: &Vec<Stat>) -> Result<(
     let mut connection = database.acquire().await?;
     let mut transaction = connection.begin().await?;
 
-    sqlx::query("DELETE FROM int_statistic; DELETE FROM float_statistic; DELETE FROM statistic;")
-        .execute(&mut *transaction)
-        .await?;
-
     for stat in stats {
         let stat_id = stat.stat_id().parse::<i64>().unwrap();
         let stat_type = match stat.values() {
@@ -150,13 +146,16 @@ pub async fn set_statistics(database: SqlitePool, stats: &Vec<Stat>) -> Result<(
             FieldValue::Float { .. } => "FLOAT",
             FieldValue::Avgrate { .. } => "AVGRATE",
         };
-        sqlx::query("INSERT INTO statistic VALUES ($1, $2, $3, $4, 0)")
-            .bind(stat_id)
-            .bind(stat.stat_key())
-            .bind(stat_type)
-            .bind(stat.increment_only().to_owned() as u8)
-            .execute(&mut *transaction)
-            .await?;
+        sqlx::query(
+            "INSERT INTO statistic VALUES ($1, $2, $3, $4, 0) ON CONFLICT(id)
+            DO UPDATE SET key=excluded.key, type=excluded.type, increment_only=excluded.increment_only",
+        )
+        .bind(stat_id)
+        .bind(stat.stat_key())
+        .bind(stat_type)
+        .bind(stat.increment_only().to_owned() as u8)
+        .execute(&mut *transaction)
+        .await?;
 
         match stat.values() {
             FieldValue::Int {
@@ -166,15 +165,20 @@ pub async fn set_statistics(database: SqlitePool, stats: &Vec<Stat>) -> Result<(
                 min_value,
                 max_change,
             } => {
-                sqlx::query("INSERT INTO int_statistic VALUES ($1, $2, $3, $4, $5, $6)")
-                    .bind(stat_id)
-                    .bind(value)
-                    .bind(default_value.unwrap_or_else(|| 0))
-                    .bind(min_value)
-                    .bind(max_value)
-                    .bind(max_change)
-                    .execute(&mut *transaction)
-                    .await?;
+                sqlx::query(
+                    "INSERT INTO int_statistic VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT(id) 
+                    DO UPDATE SET value=excluded.value, default_value=excluded.default_value,
+                    min_value=excluded.min_value, max_change=excluded.max_change 
+                    WHERE int_statistic.id NOT IN (SELECT id FROM statistic WHERE changed=1)",
+                )
+                .bind(stat_id)
+                .bind(value)
+                .bind(default_value.unwrap_or_else(|| 0))
+                .bind(min_value)
+                .bind(max_value)
+                .bind(max_change)
+                .execute(&mut *transaction)
+                .await?;
             }
 
             FieldValue::Float {
@@ -191,16 +195,21 @@ pub async fn set_statistics(database: SqlitePool, stats: &Vec<Stat>) -> Result<(
                 max_value,
                 max_change,
             } => {
-                sqlx::query("INSERT INTO float_statistic VALUES ($1, $2, $3, $4, $5, $6, $7)")
-                    .bind(stat_id)
-                    .bind(value)
-                    .bind(default_value.unwrap_or_else(|| 0.0))
-                    .bind(min_value)
-                    .bind(max_value)
-                    .bind(max_change)
-                    .bind(stat.window())
-                    .execute(&mut *transaction)
-                    .await?;
+                sqlx::query(
+                    "INSERT INTO float_statistic VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT(id)
+                    DO UPDATE SET value=excluded.value, default_value=excluded.default_value,
+                    min_value=excluded.min_value, max_change=excluded.max_change, window=excluded.window
+                    WHERE float_statistic.id NOT IN (SELECT id FROM statistic WHERE changed=1)",
+                )
+                .bind(stat_id)
+                .bind(value)
+                .bind(default_value.unwrap_or_else(|| 0.0))
+                .bind(min_value)
+                .bind(max_value)
+                .bind(max_change)
+                .bind(stat.window())
+                .execute(&mut *transaction)
+                .await?;
             }
         }
     }
@@ -344,8 +353,16 @@ pub async fn set_achievements(
     for achievement in achievements {
         let achievement_id = achievement.achievement_id().parse::<i64>().unwrap();
 
-        let insert_req = sqlx::query(
-            "INSERT INTO achievement VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, $11)",
+        sqlx::query(
+            "INSERT INTO achievement VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 0, $9, $10, $11)
+            ON CONFLICT(id) DO UPDATE SET key=excluded.key,
+            name=excluded.name, description=excluded.description,
+            visible_while_locked=excluded.visible_while_locked,
+            image_url_locked=excluded.image_url_locked,
+            image_url_unlocked=excluded.image_url_unlocked,
+            rarity=excluded.rarity, rarity_level_description=excluded.rarity_level_description,
+            rarity_level_slug=excluded.rarity_level_slug
+            ",
         )
         .bind(achievement_id)
         .bind(achievement.achievement_key())
@@ -359,51 +376,23 @@ pub async fn set_achievements(
         .bind(achievement.rarity_level_description())
         .bind(achievement.rarity_level_slug())
         .execute(&mut *transaction)
-        .await;
+        .await?;
 
-        if insert_req.is_err() {
-            // If entry already exist, update it if it's not pending an update
-            sqlx::query(
-                r"UPDATE achievement SET name=?, description=?,
-                visible_while_locked=?,
-                unlock_time=?, image_url_locked=?, image_url_unlocked=?,
-                rarity=?, rarity_level_description=?, rarity_level_slug=?
-                WHERE id=? AND changed=0",
-            )
-            .bind(achievement.name())
-            .bind(achievement.description())
-            .bind(*achievement.visible() as u32)
+        sqlx::query("UPDATE achievement SET unlock_time=$1 WHERE id=$2 AND changed=0")
             .bind(achievement.date_unlocked())
-            .bind(achievement.image_url_locked())
-            .bind(achievement.image_url_unlocked())
-            .bind(achievement.rarity())
-            .bind(achievement.rarity_level_description())
-            .bind(achievement.rarity_level_slug())
             .bind(achievement_id)
             .execute(&mut *transaction)
             .await?;
-        }
     }
 
-    let previously_retrieved =
-        sqlx::query("SELECT * FROM database_info WHERE key='achievements_retrieved'")
-            .fetch_optional(&mut *transaction)
-            .await?;
-
-    if previously_retrieved.is_none() {
-        sqlx::query("INSERT INTO database_info VALUES ('achievements_retrieved', '1'), ('achievements_mode', $1)")
-            .bind(mode)
-            .execute(&mut *transaction)
-            .await?;
-    } else {
-        sqlx::query("UPDATE database_info SET value='1' WHERE key='achievements_retrieved'")
-            .execute(&mut *transaction)
-            .await?;
-        sqlx::query("UPDATE database_info SET value='$1' WHERE key='achievements_mode'")
-            .bind(mode)
-            .execute(&mut *transaction)
-            .await?;
-    }
+    sqlx::query(
+        r"INSERT INTO database_info VALUES 
+          ('achievements_retrieved', '1'), ('achievements_mode', $1)
+          ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+    )
+    .bind(mode)
+    .execute(&mut *transaction)
+    .await?;
 
     transaction.commit().await?;
     Ok(())
@@ -463,18 +452,6 @@ pub async fn update_leaderboards(
     let mut connection = context.db_connection().acquire().await?;
     let mut transaction = connection.begin().await?;
 
-    // Get existing ids from db
-    let ids_res = sqlx::query("SELECT id FROM leaderboard")
-        .fetch_all(&mut *transaction)
-        .await?;
-    let ids: Vec<String> = ids_res
-        .iter()
-        .map(|row| {
-            let id: i64 = row.try_get("id").unwrap();
-            id.to_string()
-        })
-        .collect();
-
     for def in leaderboard_definitions {
         let sort_method = match def.sort_method().as_str() {
             "desc" => "SORT_METHOD_DESCENDING",
@@ -485,27 +462,21 @@ pub async fn update_leaderboards(
             "milliseconds" => "DISPLAY_TYPE_TIME_MILLISECONDS",
             _ => "DISPLAY_TYPE_NUMERIC",
         };
-        if !ids.contains(def.id()) {
-            log::trace!("Inserting new leaderboard entry {}", def.key());
-            sqlx::query("INSERT INTO leaderboard (id, key, name, sort_method, display_type, changed) VALUES ($1, $2, $3, $4, $5, 0)")
-                .bind(def.id())
-                .bind(def.key())
-                .bind(def.name())
-                .bind(sort_method)
-                .bind(display_type)
-                .execute(&mut *transaction)
-                .await?;
-        } else {
-            log::trace!("Updating leaderboard entry {}", def.key());
-            sqlx::query("UPDATE leaderboard SET id=$1, key=$2, name=$3, sort_method=$4, display_type=$5 WHERE id=$1")
-                .bind(def.id())
-                .bind(def.key())
-                .bind(def.name())
-                .bind(sort_method)
-                .bind(display_type)
-                .execute(&mut *transaction)
-                .await?;
-        }
+        log::trace!("Inserting new leaderboard entry {}", def.key());
+        sqlx::query(
+            r"INSERT INTO leaderboard (id, key, name, sort_method, display_type, changed)
+                VALUES ($1, $2, $3, $4, $5, 0)
+                ON CONFLICT(id) DO UPDATE
+                SET key=excluded.key,name=excluded.name,
+                sort_method=excluded.sort_method,display_type=excluded.display_type",
+        )
+        .bind(def.id())
+        .bind(def.key())
+        .bind(def.name())
+        .bind(sort_method)
+        .bind(display_type)
+        .execute(&mut *transaction)
+        .await?;
     }
 
     transaction.commit().await?;
