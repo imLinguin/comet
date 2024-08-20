@@ -32,7 +32,10 @@ enum SubCommand {
     },
 
     #[command(about = "Download overlay")]
-    Overlay,
+    Overlay {
+        #[arg(long, help = "Force the download of non-native overlay")]
+        force: bool,
+    },
 }
 
 #[derive(Parser, Debug)]
@@ -223,11 +226,24 @@ async fn main() {
                     info!("Already in database")
                 }
             }
-            SubCommand::Overlay => {
+            SubCommand::Overlay { force } => {
+                #[cfg(target_os = "linux")]
+                if !force {
+                    error!("There is no linux native overlay, to download a windows version use --force");
+                    return;
+                }
+                #[cfg(not(target_os = "linux"))]
+                if force {
+                    warn!("The force flag has no effect on this platform");
+                }
+
                 if let Err(err) = api::gog::components::get_component(
                     &reqwest_client,
                     paths::REDISTS_STORAGE.clone(),
+                    #[cfg(not(target_os = "macos"))]
                     api::gog::components::Platform::Windows,
+                    #[cfg(target_os = "macos")]
+                    api::gog::components::Platform::Mac,
                     api::gog::components::Component::Overlay,
                 )
                 .await
