@@ -58,6 +58,12 @@ pub enum Component {
     Overlay,
 }
 
+#[derive(Serialize, Deserialize, Debug, Default)]
+struct ComponentManifestLocal {
+    pub time: i64,
+    pub version: String,
+}
+
 impl Display for Component {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -73,13 +79,16 @@ pub async fn get_component(
     platform: Platform,
     component: Component,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    let last_check = dest_path.join(format!(".{}-check-{}", component, platform));
-    let version_path = dest_path.join(format!(".{}-version-{}", component, platform));
-    if let Ok(time_str) = fs::read_to_string(&last_check).await {
-        let timestamp: i64 = time_str.parse().unwrap_or_default();
-        if timestamp + (24 * 3600) > chrono::Utc::now().timestamp() {
-            return Ok(());
+    let manifest_path = dest_path.join(format!(".{}-{}.toml", component, platform));
+    let local_manifest: ComponentManifestLocal = match fs::read_to_string(&manifest_path).await {
+        Ok(manifest_str) => toml::from_str(&manifest_str).unwrap_or_default(),
+        Err(err) => {
+            log::debug!("Failed to read component manifest {err:?}");
+            ComponentManifestLocal::default()
         }
+    };
+    if local_manifest.time + (24 * 3600) > chrono::Utc::now().timestamp() {
+        return Ok(());
     }
     log::debug!("Checking for peer updates");
     let url = format!(
@@ -91,10 +100,8 @@ pub async fn get_component(
     let manifest: ComponentManifest = manifest_res.json().await?;
 
     if dest_path.exists() {
-        if let Ok(version_str) = fs::read_to_string(&version_path).await {
-            if version_str == manifest.version && !manifest.force_update {
-                return Ok(());
-            }
+        if local_manifest.version == manifest.version && !manifest.force_update {
+            return Ok(());
         }
     } else {
         fs::create_dir_all(&dest_path).await?;
@@ -132,8 +139,12 @@ pub async fn get_component(
         fs::symlink(symlink.target(), dest_path.join(symlink.path())).await?;
     }
 
-    fs::write(version_path, manifest.version()).await?;
-    fs::write(last_check, chrono::Utc::now().timestamp().to_string()).await?;
+    let new_manifest = ComponentManifestLocal {
+        version: manifest.version().clone(),
+        time: chrono::Utc::now().timestamp(),
+    };
+    let data = toml::to_string(&new_manifest).expect("Failed to serialize local manifest");
+    fs::write(manifest_path, data).await?;
 
     Ok(())
 }
