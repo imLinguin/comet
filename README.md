@@ -66,7 +66,7 @@ Use `--from-heroic` for automatic import.
 Log in to Lutris's GOG source.  
 Use `--from-lutris` for automatic import.
 
-### Via [wyvern](https://github.com/nicohman/wyvern) (CLI)
+#### Via [wyvern](https://github.com/nicohman/wyvern) (CLI)
 
 Log in to GOG in wyvern  
 Use `--from-wyvern` for automatic import.
