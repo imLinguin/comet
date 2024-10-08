@@ -8,7 +8,7 @@
 If you're seeing this page, then you're probably considering shipping a native Linux build of your game on GOG.  
 Excellent choice! If you've researched the GOG GALAXY SDK then you've probably discovered that it appears to not be available for Linux.
 
-**But don't leave yet!** It is still possible to use the GOG GALAXY SDK on your Linux build to enable online features such as achievements and playtime tracking, and it may even save you some general effort in the process.  
+**But don't leave yet!** It is still possible to use the GOG GALAXY SDK on your Linux build to enable achievements and other online features, and it may even save you some general effort in the process.  
 This has already been proven to work by several games, including:
 
 - [Crypt of the NecroDancer](https://www.gog.com/game/crypt_of_the_necrodancer)
