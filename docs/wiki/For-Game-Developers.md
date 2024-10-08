@@ -11,10 +11,10 @@ Excellent choice! If you've researched the GOG GALAXY SDK then you've probably d
 **But don't leave yet!** It is still possible to use the GOG GALAXY SDK on your Linux build to enable online features such as achievements and playtime tracking, and it may even save you some general effort in the process.  
 This has already been proven to work by several games, including:
 
-- [Crypt of the NecroDancer](https://www.gog.com/en/game/crypt_of_the_necrodancer)
-- [Indivisible](https://www.gog.com/en/game/indivisible)
-- [Stardew Valley](https://www.gog.com/en/game/stardew_valley)
-- [Streets of Rage 4](https://www.gog.com/en/game/streets_of_rage_4)
+- [Crypt of the NecroDancer](https://www.gog.com/game/crypt_of_the_necrodancer)
+- [Indivisible](https://www.gog.com/game/indivisible)
+- [Stardew Valley](https://www.gog.com/game/stardew_valley)
+- [Streets of Rage 4](https://www.gog.com/game/streets_of_rage_4)
 
 ## How to get the native Linux library
 

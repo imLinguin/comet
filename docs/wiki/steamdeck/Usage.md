@@ -1,6 +1,6 @@
 # Using with the Steam Deck
 
-Using Comet with Valve's Steam Deck (running SteamOS) is possible in both Desktop and Game Mode. Comet will only function with games that do support [GOG Galaxy's achievement system](https://www.gog.com/en/games?features=achievements) or any other online related functionality like Leaderboards. **If your game does not work out of the box, check Known Issues below.**
+Using Comet with Valve's Steam Deck (running SteamOS) is possible in both Desktop and Game Mode. Comet will only function with games that do support [GOG Galaxy's achievement system](https://www.gog.com/games?features=achievements) or any other online related functionality like Leaderboards. **If your game does not work out of the box, check Known Issues below.**
 
 Using `comet_shortcut.sh` will simplify the process of launching GOG games from Heroic or Lutris with Comet in the background. That script works in both Modes.
 
