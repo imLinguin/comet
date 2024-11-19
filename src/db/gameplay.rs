@@ -165,8 +165,9 @@ pub async fn set_statistics(database: SqlitePool, stats: &Vec<Stat>) -> Result<(
                 min_value,
                 max_change,
             } => {
+                log::debug!("Inserting int");
                 sqlx::query(
-                    "INSERT INTO int_statistic VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT(id) 
+                    "INSERT INTO int_statistic VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT 
                     DO UPDATE SET value=excluded.value, default_value=excluded.default_value,
                     min_value=excluded.min_value, max_change=excluded.max_change 
                     WHERE int_statistic.id NOT IN (SELECT id FROM statistic WHERE changed=1)",
@@ -195,8 +196,9 @@ pub async fn set_statistics(database: SqlitePool, stats: &Vec<Stat>) -> Result<(
                 max_value,
                 max_change,
             } => {
+                log::debug!("Inserting float");
                 sqlx::query(
-                    "INSERT INTO float_statistic VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT(id)
+                    "INSERT INTO float_statistic VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT
                     DO UPDATE SET value=excluded.value, default_value=excluded.default_value,
                     min_value=excluded.min_value, max_change=excluded.max_change, window=excluded.window
                     WHERE float_statistic.id NOT IN (SELECT id FROM statistic WHERE changed=1)",

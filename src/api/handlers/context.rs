@@ -83,9 +83,10 @@ impl HandlerContext {
             .await?;
 
         // This may already exist, we don't care
-        let _ = sqlx::query("INSERT INTO database_info VALUES ('language', 'en-US')")
+        let _ = sqlx::query("INSERT INTO database_info VALUES ('language', $1) ON CONFLICT(key) DO UPDATE SET value = excluded.value")
+            .bind(crate::LOCALE.as_str())
             .execute(&mut *connection)
-            .await; // TODO: Handle languages
+            .await;
 
         self.db_connected = true;
         Ok(())

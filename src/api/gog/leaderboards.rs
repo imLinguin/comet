@@ -62,7 +62,7 @@ where
     let response = reqwest_client
         .get(new_url)
         .bearer_auth(token.access_token)
-        .header("X-Gog-Lc", "en-US") // TODO: Handle languages
+        .header("X-Gog-Lc", crate::LOCALE.as_str())
         .send()
         .await?;
 
@@ -113,7 +113,7 @@ where
     let response = reqwest_client
         .get(new_url)
         .bearer_auth(token.access_token)
-        .header("X-Gog-Lc", "en-US") // TODO: Handle languages
+        .header("X-Gog-Lc", crate::LOCALE.as_str())
         .send()
         .await?;
 

@@ -29,6 +29,7 @@ async_zip = { version = "0.0.17", features = ["tokio", "deflate"] }
 base64 = "0.22.0"
 serde_ini = "0.2.0"
 toml = "0.8.19"
+sys-locale = "0.3.2"
 
 [build-dependencies]
 protobuf-codegen = "3.4.0"

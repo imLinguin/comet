@@ -82,7 +82,7 @@ pub async fn fetch_achievements(
     let response = reqwest_client
         .get(url)
         .bearer_auth(token.access_token)
-        .header("X-Gog-Lc", "en-US") // TODO: Handle languages
+        .header("X-Gog-Lc", crate::LOCALE.as_str())
         .send()
         .await
         .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;

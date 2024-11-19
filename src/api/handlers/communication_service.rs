@@ -464,7 +464,7 @@ async fn get_user_achievements(
     );
     let mut content = GetUserAchievementsResponse::new();
     content.set_achievements_mode(achievements_mode);
-    content.set_language("en-US".to_string());
+    content.set_language(crate::LOCALE.clone());
 
     for achievement in achievements {
         let mut proto_achievement = UserAchievement::new();

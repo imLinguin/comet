@@ -86,6 +86,10 @@ struct Args {
     subcommand: Option<SubCommand>,
 }
 
+lazy_static! {
+    static ref LOCALE: String = sys_locale::get_locale().unwrap_or_else(|| String::from("en-US"));
+}
+
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
@@ -94,6 +98,8 @@ async fn main() {
         .target(Target::Stderr)
         .filter_module("h2::codec", log::LevelFilter::Off)
         .init();
+
+    log::info!("Prefered language: {}", LOCALE.as_str());
 
     let (access_token, refresh_token, galaxy_user_id) =
         import_parsers::handle_credentials_import(&args);
