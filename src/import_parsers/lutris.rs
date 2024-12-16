@@ -12,20 +12,36 @@ struct LutrisConf {
 }
 
 fn get_config_path() -> Option<path::PathBuf> {
-    let home_dir = env::var("HOME").unwrap();
+    let home_dir = env::var("HOME").ok()?;
     let home_dir = path::Path::new(&home_dir);
 
     let config_path: path::PathBuf = env::var("XDG_CONFIG_HOME")
         .unwrap_or_else(|_e| home_dir.join(".config").to_str().unwrap().to_string())
         .into();
+    let data_path: path::PathBuf = env::var("XDG_DATA_HOME")
+        .unwrap_or_else(|_e| home_dir.join(".local/share").to_str().unwrap().to_string())
+        .into();
     let cache_path: path::PathBuf = env::var("XDG_CACHE_HOME")
         .unwrap_or_else(|_e| home_dir.join(".cache").to_str().unwrap().to_owned())
         .into();
+
+    // Look for lutris.conf in order
+    // 1. $XDG_CONFIG_HOME/lutris/lutris.conf
+    // 2. $XDG_DATA_HOME/lutris/lutris.conf
+    // For both host and flatpak paths
+
     let lutris_conf = config_path.join("lutris/lutris.conf");
-    let lutris_conf_data = fs::read_to_string(lutris_conf).or_else(|_| {
-        // Fallback to flatpak's config
-        fs::read_to_string(home_dir.join(".var/app/net.lutris.Lutris/config/lutris/lutris.conf"))
-    });
+    let lutris_dconf = data_path.join("lutris/lutris.conf");
+    let lutris_conf_data = fs::read_to_string(lutris_conf)
+        .or_else(|_| fs::read_to_string(lutris_dconf))
+        .or_else(|_| {
+            fs::read_to_string(
+                home_dir.join(".var/app/net.lutris.Lutris/config/lutris/lutris.conf"),
+            )
+        })
+        .or_else(|_| {
+            fs::read_to_string(home_dir.join(".var/app/net.lutris.Lutris/data/lutris/lutris.conf"))
+        });
     match lutris_conf_data {
         Ok(data) => {
             // Attempt to parse the config in search for custom cache_dir
