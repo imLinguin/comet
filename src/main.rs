@@ -173,8 +173,8 @@ async fn main() {
                     .await
                     .expect("Failed to setup the database");
 
-                if !db::gameplay::has_achievements(database.clone()).await
-                    || !db::gameplay::has_statistics(database.clone()).await
+                if !db::gameplay::has_achievements(&database).await
+                    || !db::gameplay::has_statistics(&database).await
                 {
                     let mut connection = database.acquire().await.unwrap();
                     sqlx::query(db::gameplay::SETUP_QUERY)

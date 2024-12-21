@@ -26,7 +26,7 @@ use crate::proto::gog_protocols_pb::Header;
 
 pub async fn entry_point(
     payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -80,7 +80,7 @@ pub async fn entry_point(
 
 async fn library_info_request(
     payload: &ProtoPayload,
-    _context: &mut HandlerContext,
+    _context: &HandlerContext,
     _user_info: Arc<UserInfo>,
     _reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -122,7 +122,7 @@ async fn library_info_request(
 
 async fn auth_info_request(
     payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -134,8 +134,8 @@ async fn auth_info_request(
     let client_secret = request_data.client_secret();
     let openid = request_data.openid();
 
-    if !context.client_identified() {
-        context.identify_client(client_id, client_secret);
+    if !context.client_identified().await {
+        context.identify_client(client_id, client_secret).await;
         info!("Client identified as {} {}", client_id, client_secret);
     }
 
@@ -180,7 +180,7 @@ async fn auth_info_request(
             token_storage.insert(String::from(client_id), token.clone());
             drop(token_storage);
             content.set_refresh_token(token.refresh_token);
-            context.set_online();
+            context.set_online().await;
         }
         Err(err) => {
             warn!("There was an error getting the access token {:?}", err);
@@ -193,8 +193,9 @@ async fn auth_info_request(
                 }
             }
             // Check if we can continue offline
-            let ach = db::gameplay::has_achievements(context.db_connection()).await;
-            let stat = db::gameplay::has_statistics(context.db_connection()).await;
+            let db_connection = context.db_connection().await;
+            let ach = db::gameplay::has_achievements(&db_connection).await;
+            let stat = db::gameplay::has_statistics(&db_connection).await;
             if !stat && !ach {
                 panic!("No statistics or achievements locally, can't continue");
             }
@@ -217,13 +218,13 @@ async fn auth_info_request(
 
 async fn get_user_stats(
     _payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let new_stats = gog::stats::fetch_stats(
         context.token_store(),
-        &context.client_id().clone().unwrap(),
+        &context.client_id().await.unwrap(),
         &user_info.galaxy_user_id,
         reqwest_client,
     )
@@ -244,12 +245,13 @@ async fn get_user_stats(
     };
 
     if stats_source == DataSource::Online {
-        if let Err(err) = db::gameplay::set_statistics(context.db_connection(), &stats).await {
+        if let Err(err) = db::gameplay::set_statistics(context.db_connection().await, &stats).await
+        {
             warn!("Failed to set statistics in gameplay database {:?}", err);
         }
     }
 
-    context.set_updated_stats(true);
+    context.set_updated_stats(true).await;
 
     // Prepare response
     let mut header = Header::new();
@@ -342,7 +344,7 @@ async fn get_user_stats(
 
 async fn update_user_stat(
     proto_payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     _user_info: Arc<UserInfo>,
     _reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -371,7 +373,7 @@ async fn update_user_stat(
         }
     };
 
-    context.set_updated_stats(true);
+    context.set_updated_stats(true).await;
 
     let mut header = Header::new();
     header.set_type(
@@ -389,7 +391,7 @@ async fn update_user_stat(
 
 async fn delete_user_stats(
     _proto_payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -417,13 +419,14 @@ async fn delete_user_stats(
 
 async fn get_user_achievements(
     _proto_payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
+    let client_id = context.client_id().await.unwrap();
     let online_achievements = gog::achievements::fetch_achievements(
         context.token_store(),
-        &context.client_id().clone().unwrap(),
+        &client_id,
         &user_info.galaxy_user_id,
         reqwest_client,
     )
@@ -444,7 +447,7 @@ async fn get_user_achievements(
 
     if achievements_source == DataSource::Online {
         if let Err(err) = db::gameplay::set_achievements(
-            context.db_connection(),
+            context.db_connection().await,
             &achievements,
             &achievements_mode,
         )
@@ -452,7 +455,7 @@ async fn get_user_achievements(
         {
             warn!("Failed to set achievements in gameplay database {:?}", err);
         }
-        context.set_updated_achievements(true);
+        context.set_updated_achievements(true).await;
     }
 
     let mut header = Header::new();
@@ -499,7 +502,7 @@ async fn get_user_achievements(
 
 async fn unlock_user_achievement(
     proto_payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     _user_info: Arc<UserInfo>,
     _reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -527,7 +530,7 @@ async fn unlock_user_achievement(
         db::gameplay::set_achievement(context, ach_id, timestamp_string.clone())
             .await
             .expect("Failed to write achievement to database");
-        context.set_updated_achievements(true);
+        context.set_updated_achievements(true).await;
     }
 
     let mut header = Header::new();
@@ -546,7 +549,7 @@ async fn unlock_user_achievement(
 
 async fn clear_user_achievement(
     proto_payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     _user_info: Arc<UserInfo>,
     _reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -559,7 +562,7 @@ async fn clear_user_achievement(
     db::gameplay::set_achievement(context, ach_id, None)
         .await
         .expect("Failed to write achievement to database");
-    context.set_updated_achievements(true);
+    context.set_updated_achievements(true).await;
 
     let mut header = Header::new();
     header.set_type(
@@ -577,7 +580,7 @@ async fn clear_user_achievement(
 
 async fn delete_user_achievements(
     _proto_payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -605,7 +608,7 @@ async fn delete_user_achievements(
 
 async fn get_leaderboards(
     _proto_payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     _user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -614,7 +617,7 @@ async fn get_leaderboards(
 
 async fn get_leaderboards_by_key(
     proto_payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     _user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -627,7 +630,7 @@ async fn get_leaderboards_by_key(
 
 async fn get_leaderboard_entries_global(
     proto_payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     _user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -649,7 +652,7 @@ async fn get_leaderboard_entries_global(
 }
 async fn get_leaderboard_entries_around_user(
     proto_payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     _user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -675,7 +678,7 @@ async fn get_leaderboard_entries_around_user(
 
 async fn get_leaderboard_entries_for_users(
     proto_payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     _user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -702,7 +705,7 @@ async fn get_leaderboard_entries_for_users(
 
 async fn set_leaderboard_score(
     proto_payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
@@ -804,7 +807,7 @@ async fn set_leaderboard_score(
                 db::gameplay::set_leaderboad_changed(context, &id, true)
                     .await
                     .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
-                context.set_updated_leaderboards(true);
+                context.set_updated_leaderboards(true).await;
             }
         }
     }
@@ -834,7 +837,7 @@ async fn set_leaderboard_score(
 
 async fn create_leaderboard(
     proto_payload: &ProtoPayload,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     _user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {

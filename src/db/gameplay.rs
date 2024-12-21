@@ -37,7 +37,7 @@ pub async fn setup_connection(client_id: &str, user_id: &str) -> Result<SqlitePo
     SqlitePool::connect(&url).await
 }
 
-pub async fn has_statistics(database: SqlitePool) -> bool {
+pub async fn has_statistics(database: &SqlitePool) -> bool {
     let connection = database.acquire().await;
     if connection.is_err() {
         return false;
@@ -64,7 +64,7 @@ pub async fn get_statistics(
     context: &HandlerContext,
     only_changed: bool,
 ) -> Result<Vec<Stat>, Error> {
-    let database = context.db_connection();
+    let database = context.db_connection().await;
     let mut connection = database.acquire().await?;
     let mut stats: Vec<Stat> = Vec::new();
     let int_stats = sqlx::query(
@@ -233,7 +233,7 @@ pub async fn set_stat_float(
     stat_id: i64,
     value: f32,
 ) -> Result<(), Error> {
-    let database = context.db_connection();
+    let database = context.db_connection().await;
     let mut connection = database.acquire().await?;
 
     sqlx::query("UPDATE float_statistic SET value=$1 WHERE id=$2; UPDATE statistic SET changed=1 WHERE id=$2;")
@@ -245,7 +245,7 @@ pub async fn set_stat_float(
     Ok(())
 }
 pub async fn set_stat_int(context: &HandlerContext, stat_id: i64, value: i32) -> Result<(), Error> {
-    let database = context.db_connection();
+    let database = context.db_connection().await;
     let mut connection = database.acquire().await?;
 
     sqlx::query("UPDATE int_statistic SET value=$1 WHERE id=$2; UPDATE statistic SET changed=1 WHERE id=$2;")
@@ -258,7 +258,7 @@ pub async fn set_stat_int(context: &HandlerContext, stat_id: i64, value: i32) ->
 }
 
 pub async fn reset_stats(context: &HandlerContext) -> Result<(), Error> {
-    let database = context.db_connection();
+    let database = context.db_connection().await;
     let mut connection = database.acquire().await?;
 
     sqlx::query("UPDATE float_statistic SET value=default_value; UPDATE int_statistic SET value=default_value; UPDATE statistic SET changed=0")
@@ -268,7 +268,7 @@ pub async fn reset_stats(context: &HandlerContext) -> Result<(), Error> {
     Ok(())
 }
 
-pub async fn has_achievements(database: SqlitePool) -> bool {
+pub async fn has_achievements(database: &SqlitePool) -> bool {
     let connection = database.acquire().await;
     if connection.is_err() {
         return false;
@@ -313,7 +313,7 @@ pub async fn get_achievements(
     context: &HandlerContext,
     only_changed: bool,
 ) -> Result<(Vec<Achievement>, String), Error> {
-    let database = context.db_connection();
+    let database = context.db_connection().await;
     let mut connection = database.acquire().await?;
     let mut achievements: Vec<Achievement> = Vec::new();
 
@@ -404,7 +404,7 @@ pub async fn get_achievement(
     context: &HandlerContext,
     achievement_id: i64,
 ) -> Result<Achievement, Error> {
-    let database = context.db_connection();
+    let database = context.db_connection().await;
     let mut connection = database.acquire().await?;
 
     let result = sqlx::query(
@@ -425,7 +425,7 @@ pub async fn set_achievement(
     achievement_id: i64,
     date_unlocked: Option<String>,
 ) -> Result<(), Error> {
-    let database = context.db_connection();
+    let database = context.db_connection().await;
     let mut connection = database.acquire().await?;
 
     sqlx::query("UPDATE achievement SET changed=1, unlock_time=? WHERE id=?")
@@ -438,7 +438,7 @@ pub async fn set_achievement(
 }
 
 pub async fn reset_achievements(context: &HandlerContext) -> Result<(), Error> {
-    let database = context.db_connection();
+    let database = context.db_connection().await;
     let mut connection = database.acquire().await?;
 
     sqlx::query("UPDATE achievement SET changed=0, unlock_time=NULL")
@@ -451,7 +451,7 @@ pub async fn update_leaderboards(
     context: &HandlerContext,
     leaderboard_definitions: &Vec<LeaderboardDefinition>,
 ) -> Result<(), Error> {
-    let mut connection = context.db_connection().acquire().await?;
+    let mut connection = context.db_connection().await.acquire().await?;
     let mut transaction = connection.begin().await?;
 
     for def in leaderboard_definitions {
@@ -515,7 +515,7 @@ where
     K: AsRef<str>,
     V: AsRef<str> + std::fmt::Display,
 {
-    let mut connection = context.db_connection().acquire().await?;
+    let mut connection = context.db_connection().await.acquire().await?;
     let data = sqlx::query("SELECT * FROM leaderboard")
         .fetch_all(&mut *connection)
         .await?;
@@ -534,7 +534,7 @@ where
 pub async fn get_leaderboards_score_changed(
     context: &HandlerContext,
 ) -> Result<Vec<(i64, i32, u32, u32, bool, String)>, Error> {
-    let mut connection = context.db_connection().acquire().await?;
+    let mut connection = context.db_connection().await.acquire().await?;
     let mut leaderboards = Vec::new();
     let rows = sqlx::query("SELECT id, score, rank, force_update, details, entry_total_count FROM leaderboard WHERE changed=1")
                 .fetch_all(&mut *connection)
@@ -557,7 +557,7 @@ pub async fn get_leaderboard_score(
     context: &HandlerContext,
     leaderboard_id: &str,
 ) -> Result<(i32, u32, u32, bool, String), Error> {
-    let mut connection = context.db_connection().acquire().await?;
+    let mut connection = context.db_connection().await.acquire().await?;
     let row =
         sqlx::query("SELECT score, rank, force_update, details, entry_total_count FROM leaderboard WHERE id = $1")
             .bind(leaderboard_id)
@@ -576,7 +576,7 @@ pub async fn set_leaderboad_changed(
     leaderboard_id: &str,
     changed: bool,
 ) -> Result<(), Error> {
-    let mut connection = context.db_connection().acquire().await?;
+    let mut connection = context.db_connection().await.acquire().await?;
     sqlx::query("UPDATE leaderboard SET changed=$1 WHERE id = $2")
         .bind(changed)
         .bind(leaderboard_id)
@@ -593,7 +593,7 @@ pub async fn set_leaderboard_score(
     force: bool,
     details: &str,
 ) -> Result<(), Error> {
-    let mut connection = context.db_connection().acquire().await?;
+    let mut connection = context.db_connection().await.acquire().await?;
     sqlx::query("UPDATE leaderboard SET score=$1, force_update=$2, details=$3 WHERE id = $4")
         .bind(score)
         .bind(force as u8)
@@ -611,7 +611,7 @@ pub async fn set_leaderboard_rank(
     rank: u32,
     total_entries: u32,
 ) -> Result<(), Error> {
-    let mut connection = context.db_connection().acquire().await?;
+    let mut connection = context.db_connection().await.acquire().await?;
     sqlx::query("UPDATE leaderboard SET score=$1, entry_total_count=$2 WHERE id = $3")
         .bind(rank)
         .bind(total_entries)

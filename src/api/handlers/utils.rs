@@ -39,7 +39,7 @@ pub async fn parse_payload(
 }
 
 pub async fn handle_leaderboards_query<I, K, V>(
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     reqwest_client: &Client,
     params: I,
 ) -> Result<ProtoPayload, MessageHandlingError>
@@ -106,7 +106,7 @@ where
 }
 
 pub async fn handle_leaderboard_entries_request<I, K, V>(
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     reqwest_client: &Client,
     leaderboard_id: u64,
     params: I,

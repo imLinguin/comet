@@ -17,12 +17,7 @@ use log::{debug, error, info, warn};
 use protobuf::Message;
 use reqwest::Client;
 use sqlx::Acquire;
-use tokio::{
-    io::{AsyncReadExt, AsyncWriteExt},
-    net::TcpStream,
-    sync::broadcast::Receiver,
-    time,
-};
+use tokio::{io::AsyncWriteExt, net::TcpStream, sync::broadcast::Receiver, time};
 use tokio_util::sync::CancellationToken;
 
 pub async fn entry_point(
@@ -38,75 +33,96 @@ pub async fn entry_point(
         let _ = socket.shutdown().await;
         return;
     }
-    let mut context = HandlerContext::new(socket, token_store);
+    let context = Arc::new(HandlerContext::new(socket, token_store));
     debug!("Awaiting messages");
-    loop {
-        tokio::select! {
-            size_read = context.socket_mut().read_u16() => {
-                match size_read {
-                    Ok(h_size) => {
-                        if let Err(err) = handle_message(h_size, &mut context, user_info.clone(), &reqwest_client).await {
-                            match err.kind {
-                                MessageHandlingErrorKind::NotImplemented => {
-                                    warn!("Request type not implemented")
-                                },
-                                MessageHandlingErrorKind::Unauthorized => {
-                                    let _ = context.socket_mut().shutdown().await;
-                                    return
-                                }
-                                _ => {
-                                    error!("There was an error when handling the message {:?}", err);
-                                }
-                            };
-                        }
-                    },
-                    Err(err) => {
-                        if err.kind() == tokio::io::ErrorKind::UnexpectedEof {
-                            info!("Socket connection closed with {:?}", context.client_id());
+
+    let shutdown_token_clone = shutdown_token.clone();
+    let context_clone = context.clone();
+    let reqwest_clone = reqwest_client.clone();
+    let user_clone = user_info.clone();
+    let main_socket = tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                size_read = context_clone.socket_read_u16() => {
+                    match size_read {
+                        Ok(h_size) => {
+                            if let Err(err) = handle_message(h_size, &context_clone, user_clone.clone(), &reqwest_clone).await {
+                                match err.kind {
+                                    MessageHandlingErrorKind::NotImplemented => {
+                                        warn!("Request type not implemented")
+                                    },
+                                    MessageHandlingErrorKind::Unauthorized => {
+                                        let _ = context_clone.socket_mut().await.shutdown().await;
+                                        return
+                                    }
+                                    _ => {
+                                        error!("There was an error when handling the message {:?}", err);
+                                    }
+                                };
+                            }
+                        },
+                        Err(err) => {
+                            if err.kind() == tokio::io::ErrorKind::UnexpectedEof {
+                                info!("Socket connection closed with {:?}", context_clone.client_id().await);
+                                break;
+                            }
+                            error!("Was unable to read header size buffer {}", err);
                             break;
                         }
-                        error!("Was unable to read header size buffer {}", err);
-                        break;
                     }
                 }
-            }
 
-            _ = time::sleep(time::Duration::from_secs(10)) => {
-                sync_routine(&mut context, &reqwest_client, user_info.clone()).await
-            },
-
-            topic_message = topic_receiver.recv() => {
-                match topic_message {
-                    Ok(PusherEvent::Online) => {
-                            context.set_online()
-                    },
-                    Ok(PusherEvent::Offline) => {
-                        context.set_offline()
-                    },
-                    Ok(PusherEvent::Topic(message)) => {
-                        if let Err(err) = context.socket_mut().write_all(message.as_slice()).await {
-                            error!("Failed to forward topic message to socket {}", err);
-                        }
-                    },
-                    Err(err) => { error!("Failed to read topic_message {}", err); }
+                topic_message = topic_receiver.recv() => {
+                    match topic_message {
+                        Ok(PusherEvent::Online) => {
+                                context_clone.set_online().await
+                        },
+                        Ok(PusherEvent::Offline) => {
+                            context_clone.set_offline().await
+                        },
+                        Ok(PusherEvent::Topic(message)) => {
+                            if let Err(err) = context_clone.socket_mut().await.write_all(message.as_slice()).await {
+                                error!("Failed to forward topic message to socket {}", err);
+                            }
+                            debug!("Forwarded topic message");
+                        },
+                        Err(err) => { error!("Failed to read topic_message {}", err); }
+                    }
                 }
-            }
 
-            _ = shutdown_token.cancelled() => {
-                break
+                _ = shutdown_token_clone.cancelled() => break
             }
         }
-    }
-    sync_routine(&mut context, &reqwest_client, user_info.clone()).await;
+    });
+
+    let shutdown_token_clone = shutdown_token.clone();
+    let context_clone = context.clone();
+    let reqwest_clone = reqwest_client.clone();
+    let user_clone = user_info.clone();
+    tokio::spawn(async move {
+        loop {
+            tokio::select! {
+                _ = time::sleep(time::Duration::from_secs(10)) => {
+                    sync_routine(&context_clone, &reqwest_clone, user_clone.clone()).await
+                },
+
+                _ = shutdown_token_clone.cancelled() => {
+                    break
+                }
+            }
+        }
+    });
+    let _ = main_socket.await;
+    sync_routine(&context, &reqwest_client, user_info.clone()).await;
 }
 
 pub async fn handle_message(
     h_size: u16,
-    context: &mut HandlerContext,
+    context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<(), MessageHandlingError> {
-    let payload = utils::parse_payload(h_size, context.socket_mut()).await;
+    let payload = utils::parse_payload(h_size, &mut *context.socket_mut().await).await;
 
     let payload =
         payload.map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::IO(err)))?;
@@ -151,6 +167,7 @@ pub async fn handle_message(
 
     context
         .socket_mut()
+        .await
         .write_all(message_buffer.as_slice())
         .await
         .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::IO(err)))?;
@@ -158,18 +175,14 @@ pub async fn handle_message(
 }
 
 // Sync new things after a cool down or when about to exit
-async fn sync_routine(
-    context: &mut HandlerContext,
-    reqwest_client: &Client,
-    user_info: Arc<UserInfo>,
-) {
+async fn sync_routine(context: &HandlerContext, reqwest_client: &Client, user_info: Arc<UserInfo>) {
     // Make sure we are online
-    if !context.is_online() {
+    if !context.is_online().await {
         return;
     }
     let mut token_store = context.token_store().lock().await;
-    let client_id = &context.client_id().clone().unwrap();
-    let client_secret = &context.client_secret().clone().unwrap();
+    let client_id = &context.client_id().await.unwrap();
+    let client_secret = &context.client_secret().await.unwrap();
     let current_token = token_store.get(client_id);
     if let Some(token) = current_token {
         let current_time = chrono::Utc::now();
@@ -190,7 +203,7 @@ async fn sync_routine(
                 Err(err) => {
                     drop(token_store);
                     if err.is_connect() || err.is_timeout() {
-                        context.set_offline();
+                        context.set_offline().await;
                     }
                     warn!("Failed to refresh the token for {} {:?}", client_id, err);
                     return;
@@ -199,9 +212,9 @@ async fn sync_routine(
         }
     }
     drop(token_store);
-    let updated_achievements = *context.updated_achievements();
-    let updated_stats = *context.updated_stats();
-    let updated_leaderboards = *context.updated_leaderboards();
+    let updated_achievements = context.updated_achievements().await;
+    let updated_stats = context.updated_stats().await;
+    let updated_leaderboards = context.updated_leaderboards().await;
     // Is there anything to update?
     if !(updated_achievements || updated_stats || updated_leaderboards) {
         return;
@@ -213,7 +226,7 @@ async fn sync_routine(
         let changed_achievements = db::gameplay::get_achievements(context, true).await;
         match changed_achievements {
             Ok((achievements, _mode)) => {
-                let db = context.db_connection();
+                let db = context.db_connection().await;
                 let mut connection = db
                     .acquire()
                     .await
@@ -241,7 +254,7 @@ async fn sync_routine(
                     }
                 }
                 transaction.commit().await.expect("Failed to save changes");
-                context.set_updated_achievements(false);
+                context.set_updated_achievements(false).await;
                 info!("Uploaded achievements");
             }
             Err(err) => error!("Failed to read local database {:?}", err),
@@ -254,7 +267,7 @@ async fn sync_routine(
         let changed_statistics = db::gameplay::get_statistics(context, true).await;
         match changed_statistics {
             Ok(stats) => {
-                let db = context.db_connection();
+                let db = context.db_connection().await;
                 let mut connection = db
                     .acquire()
                     .await
@@ -285,7 +298,7 @@ async fn sync_routine(
                     }
                 }
                 transaction.commit().await.expect("Failed to save changes");
-                context.set_updated_stats(false);
+                context.set_updated_stats(false).await;
                 info!("Uploaded stats");
             }
             Err(err) => error!("Failed to read local database {:?}", err),
@@ -301,6 +314,7 @@ async fn sync_routine(
             Ok(entries) => {
                 let mut connection = context
                     .db_connection()
+                    .await
                     .acquire()
                     .await
                     .expect("Failed to get database connection");
@@ -379,7 +393,7 @@ async fn sync_routine(
 
                 transaction.commit().await.expect("Failed to save changes");
                 info!("Leaderboards synced");
-                context.set_updated_leaderboards(false);
+                context.set_updated_leaderboards(false).await;
             }
             Err(err) => error!("Failed to read local database {:?}", err),
         }

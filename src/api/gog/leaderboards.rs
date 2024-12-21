@@ -49,7 +49,7 @@ where
     V: AsRef<str>,
 {
     let lock = context.token_store().lock().await;
-    let client_id = context.client_id().clone().unwrap();
+    let client_id = context.client_id().await.unwrap();
     let token = lock.get(&client_id).unwrap().clone();
     drop(lock);
     let url = format!(
@@ -99,7 +99,7 @@ where
     V: AsRef<str>,
 {
     let lock = context.token_store().lock().await;
-    let client_id = context.client_id().clone().unwrap();
+    let client_id = context.client_id().await.unwrap();
     let token = lock.get(&client_id).unwrap().clone();
     drop(lock);
 
@@ -147,7 +147,7 @@ pub async fn post_leaderboard_score(
     details: Option<String>,
 ) -> Result<LeaderboardScoreUpdateResponse, reqwest::Error> {
     let lock = context.token_store().lock().await;
-    let client_id = context.client_id().clone().unwrap();
+    let client_id = context.client_id().await.unwrap();
     let token = lock.get(&client_id).unwrap().clone();
     drop(lock);
 
@@ -191,7 +191,7 @@ pub async fn create_leaderboard(
     display_type: String,
 ) -> Result<String, reqwest::Error> {
     let lock = context.token_store().lock().await;
-    let client_id = context.client_id().clone().unwrap();
+    let client_id = context.client_id().await.unwrap();
     let token = lock.get(&client_id).unwrap().clone();
     drop(lock);
 
