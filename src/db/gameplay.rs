@@ -73,7 +73,7 @@ pub async fn get_statistics(
         FROM int_statistic AS i
         JOIN statistic AS s
         ON s.id = i.id
-        WHERE ($1=1 AND s.changed=1) OR ($1=0 AND 1)",
+        WHERE ($1=0 OR s.changed=1)",
     )
     .bind(only_changed as u8)
     .fetch_all(&mut *connection)
@@ -84,7 +84,7 @@ pub async fn get_statistics(
         FROM float_statistic AS f
         JOIN statistic AS s
         ON s.id = f.id
-        WHERE ($1=1 AND s.changed=1) OR ($1=0 AND 1)"#,
+        WHERE ($1=0 OR s.changed=1)"#,
     )
     .bind(only_changed as u8)
     .fetch_all(&mut *connection)
@@ -330,7 +330,7 @@ pub async fn get_achievements(
         r#"SELECT id, key, name, description, visible_while_locked,
         unlock_time, image_url_locked, image_url_unlocked, rarity,
         rarity_level_description, rarity_level_slug
-        FROM achievement WHERE ($1=1 AND changed=1) OR ($1=0 AND 1)"#,
+        FROM achievement WHERE ($1=0 OR changed=1)"#,
     )
     .bind(only_changed as u8)
     .fetch_all(&mut *connection)
