@@ -243,21 +243,33 @@ async fn main() {
                     warn!("The force flag has no effect on this platform");
                 }
 
-                if let Err(err) = api::gog::components::get_component(
-                    &reqwest_client,
-                    paths::REDISTS_STORAGE.clone(),
-                    #[cfg(not(target_os = "macos"))]
-                    api::gog::components::Platform::Windows,
-                    #[cfg(target_os = "macos")]
-                    api::gog::components::Platform::Mac,
-                    api::gog::components::Component::Overlay,
-                )
-                .await
-                {
-                    error!("Failed to download overlay {}", err);
-                } else {
-                    info!("Done");
+                let (web, overlay) = tokio::join!(
+                    api::gog::components::get_component(
+                        &reqwest_client,
+                        paths::REDISTS_STORAGE.clone(),
+                        api::gog::components::Platform::Windows,
+                        api::gog::components::Component::Web,
+                    ),
+                    api::gog::components::get_component(
+                        &reqwest_client,
+                        paths::REDISTS_STORAGE.clone(),
+                        #[cfg(not(target_os = "macos"))]
+                        api::gog::components::Platform::Windows,
+                        #[cfg(target_os = "macos")]
+                        api::gog::components::Platform::Mac,
+                        api::gog::components::Component::Overlay,
+                    )
+                );
+
+                if let Err(err) = web {
+                    error!("Unexpected error occured when downloading web component {err}");
                 }
+
+                if let Err(err) = overlay {
+                    error!("Unexpected error occured when downloading overlay component {err}");
+                }
+
+                log::info!("Done");
             }
         }
 

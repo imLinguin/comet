@@ -56,6 +56,7 @@ struct ComponentSymlink {
 pub enum Component {
     Peer,
     Overlay,
+    Web,
 }
 
 #[derive(Serialize, Deserialize, Debug, Default)]
@@ -69,6 +70,7 @@ impl Display for Component {
         match self {
             Self::Peer => f.write_str("desktop-galaxy-peer"),
             Self::Overlay => f.write_str("desktop-galaxy-overlay"),
+            Self::Web => f.write_str("desktop-galaxy-client"),
         }
     }
 }
@@ -110,6 +112,9 @@ pub async fn get_component(
     // Download
     let n_of_files = manifest.files().len();
     for (i, file) in manifest.files().iter().enumerate() {
+        if matches!(component, Component::Web) && !file.path().starts_with("web") {
+            continue;
+        }
         log::info!("Downloading {} file {} of {}", component, i + 1, n_of_files);
         let url = format!("{}/{}", manifest.base_uri(), file.resource());
         let response = reqwest_client.get(url).send().await?;
@@ -118,8 +123,8 @@ pub async fn get_component(
         let zip = ZipFileReader::new(data.to_vec()).await?;
 
         let file_path = dest_path.join(file.path());
-        let parent = file_path.parent().unwrap();
-        if !parent.exists() {
+        let parent = file_path.parent();
+        if let Some(parent) = parent {
             fs::create_dir_all(parent).await?;
         }
 
