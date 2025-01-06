@@ -243,23 +243,23 @@ async fn main() {
                     warn!("The force flag has no effect on this platform");
                 }
 
-                let (web, overlay) = tokio::join!(
-                    api::gog::components::get_component(
-                        &reqwest_client,
-                        paths::REDISTS_STORAGE.clone(),
-                        api::gog::components::Platform::Windows,
-                        api::gog::components::Component::Web,
-                    ),
-                    api::gog::components::get_component(
-                        &reqwest_client,
-                        paths::REDISTS_STORAGE.clone(),
-                        #[cfg(not(target_os = "macos"))]
-                        api::gog::components::Platform::Windows,
-                        #[cfg(target_os = "macos")]
-                        api::gog::components::Platform::Mac,
-                        api::gog::components::Component::Overlay,
-                    )
-                );
+                let web = api::gog::components::get_component(
+                    &reqwest_client,
+                    paths::REDISTS_STORAGE.clone(),
+                    api::gog::components::Platform::Windows,
+                    api::gog::components::Component::Web,
+                )
+                .await;
+                let overlay = api::gog::components::get_component(
+                    &reqwest_client,
+                    paths::REDISTS_STORAGE.clone(),
+                    #[cfg(not(target_os = "macos"))]
+                    api::gog::components::Platform::Windows,
+                    #[cfg(target_os = "macos")]
+                    api::gog::components::Platform::Mac,
+                    api::gog::components::Component::Overlay,
+                )
+                .await;
 
                 if let Err(err) = web {
                     error!("Unexpected error occured when downloading web component {err}");

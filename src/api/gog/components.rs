@@ -1,8 +1,10 @@
 use async_zip::base::read::mem::ZipFileReader;
 use derive_getters::Getters;
+use futures::StreamExt;
 use futures_util::io;
 use serde::{Deserialize, Serialize};
-use std::{fmt::Display, path::PathBuf};
+use std::time::Duration;
+use std::{fmt::Display, path::PathBuf, time::Instant};
 use tokio::fs;
 use tokio_util::compat::TokioAsyncWriteCompatExt;
 
@@ -109,35 +111,69 @@ pub async fn get_component(
         fs::create_dir_all(&dest_path).await?;
     }
 
+    let files_to_dl: Vec<&ComponentFile> = manifest
+        .files()
+        .iter()
+        .filter(|file| !matches!(component, Component::Web) || file.path().starts_with("web"))
+        .collect();
+
+    let total_size: u32 = files_to_dl.iter().map(|file| file.size).sum();
+    let mut tasks = Vec::with_capacity(files_to_dl.len());
+    log::info!(
+        "Downloading component {} - total download size {:.2} MiB",
+        component,
+        (total_size as f32) / 1024.0 / 1024.0
+    );
     // Download
-    let n_of_files = manifest.files().len();
-    for (i, file) in manifest.files().iter().enumerate() {
-        if matches!(component, Component::Web) && !file.path().starts_with("web") {
-            continue;
-        }
-        log::info!("Downloading {} file {} of {}", component, i + 1, n_of_files);
+    for file in files_to_dl.into_iter() {
         let url = format!("{}/{}", manifest.base_uri(), file.resource());
-        let response = reqwest_client.get(url).send().await?;
-        let data = response.bytes().await?;
-
-        let zip = ZipFileReader::new(data.to_vec()).await?;
-
+        let reqwest_client = reqwest_client.clone();
         let file_path = dest_path.join(file.path());
         let parent = file_path.parent();
         if let Some(parent) = parent {
             fs::create_dir_all(parent).await?;
         }
+        tasks.push(async move {
+            let response = reqwest_client.get(url).send().await?;
+            let data = response.bytes().await?;
 
-        let mut reader = zip.reader_with_entry(0).await?;
-        let file_handle = fs::File::create(&file_path).await?;
-        io::copy(&mut reader, &mut file_handle.compat_write()).await?;
-        #[cfg(unix)]
-        if let Some(permissions) = reader.entry().unix_permissions() {
-            use std::{fs::Permissions, os::unix::fs::PermissionsExt};
-            let permissions = Permissions::from_mode(permissions as u32);
-            fs::set_permissions(file_path, permissions).await?;
+            let zip = ZipFileReader::new(data.to_vec()).await?;
+
+            let mut reader = zip.reader_with_entry(0).await?;
+            let file_handle = fs::File::create(&file_path).await?;
+            io::copy(&mut reader, &mut file_handle.compat_write()).await?;
+            #[cfg(unix)]
+            if let Some(permissions) = reader.entry().unix_permissions() {
+                use std::{fs::Permissions, os::unix::fs::PermissionsExt};
+                let permissions = Permissions::from_mode(permissions as u32);
+                fs::set_permissions(file_path, permissions).await?;
+            }
+            Ok::<_, Box<dyn std::error::Error + Send + Sync>>(file.size)
+        });
+    }
+
+    let mut pending_tasks = futures::stream::iter(tasks).buffer_unordered(4);
+
+    let mut total_dl = 0;
+    let mut instant = Instant::now();
+    while let Some(res) = pending_tasks.next().await {
+        total_dl += res?;
+        if instant.elapsed() > Duration::from_secs(1) {
+            log::info!(
+                "[{:?}] {:.2} / {:.2}",
+                component,
+                total_dl as f32 / 1024.0 / 1024.0,
+                total_size as f32 / 1024.0 / 1024.0
+            );
+            instant = Instant::now();
         }
     }
+    log::info!(
+        "[{:?}] {:.2} / {:.2}",
+        component,
+        total_dl as f32 / 1024.0 / 1024.0,
+        total_size as f32 / 1024.0 / 1024.0
+    );
 
     #[cfg(unix)]
     for symlink in manifest.symlinks() {
