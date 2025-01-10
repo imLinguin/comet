@@ -1,12 +1,14 @@
 mod communication_service;
 pub mod context;
 pub mod error;
+mod overlay_client;
+mod overlay_service;
 pub mod utils;
 mod webbroker;
 
 use crate::constants::TokenStorage;
 use error::*;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use crate::api::gog;
 use crate::api::notification_pusher::PusherEvent;
@@ -17,7 +19,12 @@ use log::{debug, error, info, warn};
 use protobuf::Message;
 use reqwest::Client;
 use sqlx::Acquire;
-use tokio::{io::AsyncWriteExt, net::TcpStream, sync::broadcast::Receiver, time};
+use tokio::{
+    io::{AsyncReadExt, AsyncWriteExt},
+    net::TcpStream,
+    sync::broadcast::Receiver,
+    time,
+};
 use tokio_util::sync::CancellationToken;
 
 pub async fn entry_point(
@@ -46,19 +53,26 @@ pub async fn entry_point(
                 size_read = context_clone.socket_read_u16() => {
                     match size_read {
                         Ok(h_size) => {
-                            if let Err(err) = handle_message(h_size, &context_clone, user_clone.clone(), &reqwest_clone).await {
-                                match err.kind {
-                                    MessageHandlingErrorKind::NotImplemented => {
-                                        warn!("Request type not implemented")
-                                    },
-                                    MessageHandlingErrorKind::Unauthorized => {
-                                        let _ = context_clone.socket_mut().await.shutdown().await;
-                                        return
+                            match handle_message(h_size, &context_clone, user_clone.clone(), &reqwest_clone, &mut *context_clone.socket_mut().await).await {
+                                Ok(res) => {
+                                    if let Err(err) = context_clone.socket_mut().await.write_all(&res).await {
+                                        error!("Failed to write response {err}");
                                     }
-                                    _ => {
-                                        error!("There was an error when handling the message {:?}", err);
+                                },
+                                Err(err) => {
+                                    match err.kind {
+                                        MessageHandlingErrorKind::NotImplemented => {
+                                            warn!("Request type not implemented")
+                                        },
+                                        MessageHandlingErrorKind::Unauthorized => {
+                                            let _ = context_clone.socket_mut().await.shutdown().await;
+                                            return
+                                        }
+                                        _ => {
+                                            error!("There was an error when handling the message {:?}", err);
+                                        }
                                     }
-                                };
+                                }
                             }
                         },
                         Err(err) => {
@@ -80,17 +94,78 @@ pub async fn entry_point(
                         Ok(PusherEvent::Offline) => {
                             context_clone.set_offline().await
                         },
-                        Ok(PusherEvent::Topic(message)) => {
-                            if let Err(err) = context_clone.socket_mut().await.write_all(message.as_slice()).await {
-                                error!("Failed to forward topic message to socket {}", err);
+                        Ok(PusherEvent::Topic(message, topic)) => {
+                            if context_clone.is_subscribed(&topic).await {
+                                if let Err(err) = context_clone.socket_mut().await.write_all(message.as_slice()).await {
+                                    error!("Failed to forward topic message to socket {}", err);
+                                }
+                                debug!("Forwarded topic message");
                             }
-                            debug!("Forwarded topic message");
                         },
                         Err(err) => { error!("Failed to read topic_message {}", err); }
                     }
                 }
 
                 _ = shutdown_token_clone.cancelled() => break
+            }
+        }
+    });
+
+    let shutdown_token_clone = shutdown_token.clone();
+    let context_clone = context.clone();
+    let reqwest_clone = reqwest_client.clone();
+    let user_clone = user_info.clone();
+    let overlay_thread = tokio::spawn(async move {
+        let overlay_listener: tokio::net::UnixListener = loop {
+            if shutdown_token_clone.is_cancelled() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            let lock = context_clone.overlay_listener().lock().await;
+            if !lock.is_empty() {
+                if let Ok(list) = tokio::net::UnixListener::bind(&*lock) {
+                    break list;
+                }
+            }
+        };
+        'outer: loop {
+            let mut current_socket = loop {
+                debug!("Waiting for overlay connection");
+                tokio::select! {
+                    Ok(res) = overlay_listener.accept() => {
+                        let (socket, _addr) = res;
+                        break socket;
+                    }
+                    _ = shutdown_token_clone.cancelled() => {
+                        break 'outer;
+                    }
+                }
+            };
+            loop {
+                tokio::select! {
+                    size_read = current_socket.read_u16() => {
+                        match size_read {
+                            Ok(h_size) => {
+                                match handle_message(h_size, &context_clone, user_clone.clone(), &reqwest_clone, &mut current_socket).await {
+                                    Ok(res) => {
+                                        let _ = current_socket.write_all(&res).await;
+                                    },
+                                    Err(err) => error!("Failed to respond to overlay {err:?}"),
+                                }
+                            },
+                            Err(err) => {
+                                if err.kind() == tokio::io::ErrorKind::UnexpectedEof {
+                                    info!("Socket connection closed with {:?}", context_clone.client_id().await);
+                                    break;
+                                }
+                                error!("Failed reading overlay data {err}");
+                            }
+                        }
+                    }
+                    _ = shutdown_token_clone.cancelled() => {
+                        break 'outer;
+                    }
+                }
             }
         }
     });
@@ -113,16 +188,22 @@ pub async fn entry_point(
         }
     });
     let _ = main_socket.await;
+    let _ = overlay_thread.await;
+    let lock = context.overlay_listener().lock().await;
+    if !lock.is_empty() {
+        let _ = tokio::fs::remove_file(&*lock).await;
+    }
     sync_routine(&context, &reqwest_client, user_info.clone()).await;
 }
 
-pub async fn handle_message(
+pub async fn handle_message<R: AsyncReadExt + Unpin>(
     h_size: u16,
     context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
-) -> Result<(), MessageHandlingError> {
-    let payload = utils::parse_payload(h_size, &mut *context.socket_mut().await).await;
+    reader: &mut R,
+) -> Result<Vec<u8>, MessageHandlingError> {
+    let payload = utils::parse_payload(h_size, reader).await;
 
     let payload =
         payload.map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::IO(err)))?;
@@ -134,7 +215,9 @@ pub async fn handle_message(
     debug!("payload.payload = {:?}", payload.payload);
     let mut result = match sort {
         1 => communication_service::entry_point(&payload, context, user_info, reqwest_client).await,
-        2 => webbroker::entry_point(&payload).await,
+        2 => webbroker::entry_point(&payload, context).await,
+        3 => overlay_service::entry_point(&payload, context).await,
+        7 => overlay_client::entry_point(&payload, context).await,
         _ => {
             warn!("Unhandled sort {}", sort);
             Err(MessageHandlingError::new(
@@ -165,13 +248,7 @@ pub async fn handle_message(
     message_buffer.extend(header_buffer);
     message_buffer.extend(result.payload);
 
-    context
-        .socket_mut()
-        .await
-        .write_all(message_buffer.as_slice())
-        .await
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::IO(err)))?;
-    Ok(())
+    Ok(message_buffer)
 }
 
 // Sync new things after a cool down or when about to exit

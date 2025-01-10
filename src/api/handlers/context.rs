@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::constants::TokenStorage;
 use crate::db;
 use derive_getters::Getters;
@@ -11,6 +13,7 @@ pub struct State {
     client_identified: bool,
     client_id: Option<String>,
     client_secret: Option<String>,
+    subscribed_topics: HashSet<String>,
     updated_achievements: bool,
     updated_stats: bool,
     updated_leaderboards: bool,
@@ -20,6 +23,8 @@ pub struct State {
 pub struct HandlerContext {
     socket: Mutex<TcpStream>,
     token_store: TokenStorage,
+    #[cfg(unix)]
+    overlay_listener: Mutex<String>,
     #[getter(skip)]
     db_connection: Mutex<Option<SqlitePool>>,
     #[getter(skip)]
@@ -33,6 +38,7 @@ impl HandlerContext {
             client_identified: false,
             client_id: None,
             client_secret: None,
+            subscribed_topics: HashSet::new(),
             updated_achievements: false,
             updated_stats: false,
             updated_leaderboards: true,
@@ -41,6 +47,7 @@ impl HandlerContext {
             socket: Mutex::new(socket),
             token_store,
             db_connection: Mutex::new(None),
+            overlay_listener: Mutex::new(String::default()),
             state,
         }
     }
@@ -62,6 +69,14 @@ impl HandlerContext {
 
     pub async fn set_online(&self) {
         self.state.lock().await.is_online = true
+    }
+
+    pub async fn subscribe_topic(&self, topic: String) {
+        self.state.lock().await.subscribed_topics.insert(topic);
+    }
+
+    pub async fn is_subscribed(&self, topic: &String) -> bool {
+        self.state.lock().await.subscribed_topics.contains(topic)
     }
 
     pub async fn set_offline(&self) {
@@ -130,5 +145,10 @@ impl HandlerContext {
     }
     pub async fn updated_leaderboards(&self) -> bool {
         self.state.lock().await.updated_leaderboards
+    }
+
+    pub async fn register_overlay_listener(&self, listener: String) {
+        let mut ov_listener = self.overlay_listener.lock().await;
+        *ov_listener = listener;
     }
 }

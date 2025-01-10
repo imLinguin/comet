@@ -8,7 +8,7 @@ use base64::prelude::*;
 use log::warn;
 use protobuf::{Enum, Message};
 use reqwest::Client;
-use tokio::{io::AsyncReadExt, net::TcpStream};
+use tokio::io::AsyncReadExt;
 
 use crate::proto::galaxy_protocols_communication_service::get_leaderboard_entries_response::LeaderboardEntry;
 use crate::proto::galaxy_protocols_communication_service::{
@@ -18,9 +18,9 @@ use crate::proto::galaxy_protocols_communication_service::{
 use crate::proto::gog_protocols_pb::Header;
 use crate::proto::{common_utils::ProtoPayload, gog_protocols_pb};
 
-pub async fn parse_payload(
+pub async fn parse_payload<R: AsyncReadExt + Unpin>(
     h_size: u16,
-    socket: &mut TcpStream,
+    socket: &mut R,
 ) -> Result<ProtoPayload, tokio::io::Error> {
     let h_size: usize = h_size.into();
     let mut buffer: Vec<u8> = vec![0; h_size];

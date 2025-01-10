@@ -1,6 +1,7 @@
 #[derive(Debug)]
 pub enum MessageHandlingErrorKind {
     NotImplemented,
+    Ignored,
     Unauthorized,
     IO(tokio::io::Error),
     DB(sqlx::Error),

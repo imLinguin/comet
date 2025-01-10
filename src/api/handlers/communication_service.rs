@@ -11,6 +11,7 @@ use log::{debug, info, warn};
 use protobuf::{Enum, Message};
 use reqwest::{Client, StatusCode};
 use std::sync::Arc;
+use tokio::io::AsyncWriteExt;
 
 use crate::proto::common_utils::ProtoPayload;
 
@@ -67,6 +68,8 @@ pub async fn entry_point(
         set_leaderboard_score(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::CREATE_LEADERBOARD_REQUEST.value() {
         create_leaderboard(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::START_GAME_SESSION_REQUEST.value() {
+        start_game_session(payload, context, user_info, reqwest_client).await
     } else {
         warn!(
             "Unhandled communication service message type {}",
@@ -890,4 +893,37 @@ async fn create_leaderboard(
     header.set_size(payload.len().try_into().unwrap());
 
     Ok(ProtoPayload { header, payload })
+}
+
+async fn start_game_session(
+    proto_payload: &ProtoPayload,
+    context: &HandlerContext,
+    _user_info: Arc<UserInfo>,
+    _reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    let request = StartGameSessionRequest::parse_from_bytes(&proto_payload.payload)
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+
+    info!("Requested session start for {}", request.game_pid());
+
+    #[cfg(unix)]
+    {
+        let pipe_name = format!(
+            "/tmp/Galaxy-{}-CommunicationService-Overlay",
+            request.game_pid()
+        );
+        context.register_overlay_listener(pipe_name).await;
+    }
+    let mut header = Header::new();
+    header.set_type(
+        MessageType::START_GAME_SESSION_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+
+    return Ok(ProtoPayload {
+        header,
+        payload: vec![],
+    });
 }

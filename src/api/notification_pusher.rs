@@ -11,6 +11,7 @@ use tokio_tungstenite::{
 use tokio_util::sync::CancellationToken;
 
 use crate::proto::common_utils::ProtoPayload;
+use crate::proto::galaxy_protocols_webbroker_service::MessageFromTopic;
 use crate::proto::gog_protocols_pb::response::Status;
 use crate::proto::{
     galaxy_common_protocols_connection,
@@ -36,7 +37,7 @@ lazy_static! {
 pub enum PusherEvent {
     Online,
     Offline,
-    Topic(Vec<u8>),
+    Topic(Vec<u8>, String),
 }
 
 pub struct NotificationPusherClient {
@@ -280,12 +281,19 @@ impl NotificationPusherClient {
                         }
                     } else if msg_type == MessageType::MESSAGE_FROM_TOPIC.value() {
                         info!("Recieved message from topic");
-                        log::debug!("Topic message: {:#?}", String::from_utf8_lossy(&msg_data));
-                        if let Err(error) = self.topic_sender.send(PusherEvent::Topic(msg_data)) {
-                            error!(
-                                "There was an error when forwarding topic message: {}",
-                                error
-                            );
+                        let message_from_topic =
+                            MessageFromTopic::parse_from_bytes(&parsed_message.payload);
+                        if let Ok(msg) = message_from_topic {
+                            log::debug!("Topic message: {:#?}", String::from_utf8_lossy(&msg_data));
+                            if let Err(error) = self
+                                .topic_sender
+                                .send(PusherEvent::Topic(msg_data, msg.topic().to_owned()))
+                            {
+                                error!(
+                                    "There was an error when forwarding topic message: {}",
+                                    error
+                                );
+                            }
                         }
                     } else {
                         warn!("Unhandled message type: {}", msg_type);

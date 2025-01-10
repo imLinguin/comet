@@ -16,6 +16,8 @@ fn main() {
         .input("proto/gog.protocols.pb.proto")
         .input("proto/galaxy.protocols.webbroker_service.proto")
         .input("proto/galaxy.protocols.overlay_for_peer.proto")
+        .input("proto/galaxy.protocols.overlay_for_client.proto")
+        .input("proto/galaxy.protocols.overlay_for_service.proto")
         .input("proto/galaxy.protocols.communication_service.proto")
         .input("proto/galaxy.common.protocols.peer_to_server.proto")
         .input("proto/galaxy.common.protocols.peer_to_peer.proto")

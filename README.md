@@ -39,6 +39,7 @@ Project is continuation of Yepoleb's work https://gitlab.com/Yepoleb/comet/ but 
 - [x] CREATE_LEADERBOARD_REQUEST
 - [ ] GET_GLOBAL_STATS_REQUEST
 - [ ] OVERLAY_STATE_CHANGE_NOTIFICATION
+- [ ] START_GAME_SESSION_REQUEST 
 
 ## How to use
 
