@@ -42,7 +42,7 @@ async fn access_token(
 
     let mut res = AccessTokenResponse::new();
     if let Some(token) = galaxy_access_token {
-        res.set_access_token(token.refresh_token.clone());
+        res.set_access_token(token.access_token.clone());
     }
     let payload = res
         .write_to_bytes()

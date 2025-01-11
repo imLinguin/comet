@@ -6,7 +6,7 @@ mod overlay_service;
 pub mod utils;
 mod webbroker;
 
-use crate::constants::TokenStorage;
+use crate::{constants::TokenStorage, proto::common_utils::ProtoPayload};
 use error::*;
 use std::{sync::Arc, time::Duration};
 
@@ -53,7 +53,10 @@ pub async fn entry_point(
                 size_read = context_clone.socket_read_u16() => {
                     match size_read {
                         Ok(h_size) => {
-                            match handle_message(h_size, &context_clone, user_clone.clone(), &reqwest_clone, &mut *context_clone.socket_mut().await).await {
+                            let payload = utils::parse_payload(h_size, &mut *context_clone.socket_mut().await).await;
+                            let Ok(payload) = payload else { continue };
+
+                            match handle_message(&context_clone, user_clone.clone(), &reqwest_clone, payload).await {
                                 Ok(res) => {
                                     if let Err(err) = context_clone.socket_mut().await.write_all(&res).await {
                                         error!("Failed to write response {err}");
@@ -128,44 +131,49 @@ pub async fn entry_point(
                 }
             }
         };
-        'outer: loop {
-            let mut current_socket = loop {
-                debug!("Waiting for overlay connection");
-                tokio::select! {
-                    Ok(res) = overlay_listener.accept() => {
-                        let (socket, _addr) = res;
-                        break socket;
-                    }
-                    _ = shutdown_token_clone.cancelled() => {
-                        break 'outer;
-                    }
+        let mut current_socket = loop {
+            debug!("Waiting for overlay connection");
+            tokio::select! {
+                Ok(res) = overlay_listener.accept() => {
+                    let (socket, _addr) = res;
+                    break socket;
                 }
-            };
-            loop {
-                tokio::select! {
-                    size_read = current_socket.read_u16() => {
-                        match size_read {
-                            Ok(h_size) => {
-                                match handle_message(h_size, &context_clone, user_clone.clone(), &reqwest_clone, &mut current_socket).await {
-                                    Ok(res) => {
-                                        let _ = current_socket.write_all(&res).await;
-                                    },
-                                    Err(err) => error!("Failed to respond to overlay {err:?}"),
-                                }
-                            },
-                            Err(err) => {
-                                if err.kind() == tokio::io::ErrorKind::UnexpectedEof {
-                                    info!("Socket connection closed with {:?}", context_clone.client_id().await);
-                                    break;
-                                }
-                                error!("Failed reading overlay data {err}");
+                _ = shutdown_token_clone.cancelled() => {
+                    return;
+                }
+            }
+        };
+        loop {
+            tokio::select! {
+                size_read = current_socket.read_u16() => {
+                    match size_read {
+                        Ok(h_size) => {
+                            let payload = utils::parse_payload(h_size, &mut current_socket).await;
+                            let Ok(payload) = payload else { continue };
+                            match handle_message(&context_clone, user_clone.clone(), &reqwest_clone, payload).await {
+                                Ok(res) => {
+                                    let _ = current_socket.write_all(&res).await;
+                                },
+                                Err(err) => error!("Failed to respond to overlay {err:?}"),
                             }
+                        },
+                        Err(err) => {
+                            if err.kind() == tokio::io::ErrorKind::UnexpectedEof {
+                                info!("Socket connection closed with {:?}", context_clone.client_id().await);
+                                break;
+                            }
+                            error!("Failed reading overlay data {err}");
                         }
                     }
-                    _ = shutdown_token_clone.cancelled() => {
-                        break 'outer;
-                    }
                 }
+                _ = shutdown_token_clone.cancelled() => {
+                    break;
+                }
+            }
+        }
+        if let Ok(addr) = overlay_listener.local_addr() {
+            if let Some(path) = addr.as_pathname() {
+                let _ = tokio::fs::remove_file(path).await;
             }
         }
     });
@@ -196,18 +204,12 @@ pub async fn entry_point(
     sync_routine(&context, &reqwest_client, user_info.clone()).await;
 }
 
-pub async fn handle_message<R: AsyncReadExt + Unpin>(
-    h_size: u16,
+pub async fn handle_message(
     context: &HandlerContext,
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
-    reader: &mut R,
+    payload: ProtoPayload,
 ) -> Result<Vec<u8>, MessageHandlingError> {
-    let payload = utils::parse_payload(h_size, reader).await;
-
-    let payload =
-        payload.map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::IO(err)))?;
-
     let sort = payload.header.sort();
     let type_ = payload.header.type_();
 
@@ -217,7 +219,7 @@ pub async fn handle_message<R: AsyncReadExt + Unpin>(
         1 => communication_service::entry_point(&payload, context, user_info, reqwest_client).await,
         2 => webbroker::entry_point(&payload, context).await,
         3 => overlay_service::entry_point(&payload, context).await,
-        7 => overlay_client::entry_point(&payload, context).await,
+        7 => overlay_client::entry_point(&payload, context, user_info).await,
         _ => {
             warn!("Unhandled sort {}", sort);
             Err(MessageHandlingError::new(

@@ -172,6 +172,31 @@ async fn auth_info_request(
         );
     }
 
+    {
+        let mut data = OverlayStateChangeNotification::new();
+        data.set_overlay_state(
+            overlay_state_change_notification::OverlayState::OVERLAY_STATE_INITIALIZED,
+        );
+        let data_buf = data.write_to_bytes().unwrap();
+        let mut header = Header::new();
+        header.set_sort(1);
+        header.set_type(
+            MessageType::OVERLAY_STATE_CHANGE_NOTIFICATION
+                .value()
+                .try_into()
+                .unwrap(),
+        );
+        header.set_size(data_buf.len().try_into().unwrap());
+        let header_buf = header.write_to_bytes().unwrap();
+        let header_size: u16 = header_buf.len().try_into().unwrap();
+
+        let mut buffer = vec![];
+        buffer.extend(header_size.to_be_bytes());
+        buffer.extend(header_buf);
+        buffer.extend(data_buf);
+        let _ = context.socket_mut().await.write_all(&buffer).await;
+    }
+
     // Use new refresh_token to prepare response
     let mut header = Header::new();
     header.set_type(MessageType::AUTH_INFO_RESPONSE.value().try_into().unwrap());
