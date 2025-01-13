@@ -17,8 +17,7 @@ Project is continuation of Yepoleb's work https://gitlab.com/Yepoleb/comet/ but 
 
 ## Supported Requests
 
-> [!NOTE] 
-> The following list excludes calls that aren't made by the game
+### Game
 
 - [x] LIBRARY_INFO_REQUEST
 - [x] AUTH_INFO_REQUEST
@@ -38,8 +37,15 @@ Project is continuation of Yepoleb's work https://gitlab.com/Yepoleb/comet/ but 
 - [x] SET_LEADERBOARD_SCORE_REQUEST
 - [x] CREATE_LEADERBOARD_REQUEST
 - [ ] GET_GLOBAL_STATS_REQUEST
-- [ ] OVERLAY_STATE_CHANGE_NOTIFICATION
-- [ ] START_GAME_SESSION_REQUEST 
+
+### Overlay
+
+- [x] START_GAME_SESSION_REQUEST 
+- [x] OVERLAY_FRONTEND_INIT_DATA_REQUEST
+- [x] OVERLAY_STATE_CHANGE_NOTIFICATION
+- [x] ACCESS_TOKEN_REQUEST
+- [x] OVERLAY_INITIALIZATION_NOTIFICATION
+- [x] NOTIFY_ACHIEVEMENT_UNLOCKED 
 
 ## How to use
 
