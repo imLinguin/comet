@@ -25,7 +25,6 @@ pub struct HandlerContext {
     socket: Mutex<TcpStream>,
     token_store: TokenStorage,
     achievement_sender: broadcast::Sender<Achievement>,
-    #[cfg(unix)]
     overlay_listener: Mutex<String>,
     #[getter(skip)]
     db_connection: Mutex<Option<SqlitePool>>,

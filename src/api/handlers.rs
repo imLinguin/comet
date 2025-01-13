@@ -132,6 +132,7 @@ pub async fn entry_point(
     let user_clone = user_info.clone();
     let overlay_thread = tokio::spawn(async move {
         let mut overlay_achievement_events = overlay_event_receiver;
+        #[cfg(unix)]
         let overlay_listener: tokio::net::UnixListener = loop {
             if shutdown_token_clone.is_cancelled() {
                 return;
@@ -144,6 +145,7 @@ pub async fn entry_point(
                 }
             }
         };
+        #[cfg(unix)]
         let mut current_socket = {
             debug!("Waiting for overlay connection");
             tokio::select! {
@@ -153,6 +155,24 @@ pub async fn entry_point(
                 }
                 _ = shutdown_token_clone.cancelled() => {
                     return;
+                }
+            }
+        };
+        #[cfg(windows)]
+        let mut current_socket: tokio::net::windows::named_pipe::NamedPipeServer = loop {
+            if shutdown_token_clone.is_cancelled() {
+                return;
+            }
+            tokio::time::sleep(Duration::from_secs(2)).await;
+            let lock = context_clone.overlay_listener().lock().await;
+            if !lock.is_empty() {
+                if let Ok(list) = tokio::net::windows::named_pipe::ServerOptions::new()
+                    .first_pipe_instance(true)
+                    .create(&*lock)
+                {
+                    if list.connect().await.is_ok() {
+                        break list;
+                    }
                 }
             }
         };
@@ -191,6 +211,7 @@ pub async fn entry_point(
                 }
             }
         }
+        #[cfg(unix)]
         if let Ok(addr) = overlay_listener.local_addr() {
             if let Some(path) = addr.as_pathname() {
                 let _ = tokio::fs::remove_file(path).await;

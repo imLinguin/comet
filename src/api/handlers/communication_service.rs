@@ -941,6 +941,14 @@ async fn start_game_session(
         );
         context.register_overlay_listener(pipe_name).await;
     }
+    #[cfg(windows)]
+    {
+        let pipe_name = format!(
+            r"\\.\pipe\Galaxy-{}-CommunicationService-Overlay",
+            request.game_pid()
+        );
+        context.register_overlay_listener(pipe_name).await;
+    }
     let mut header = Header::new();
     header.set_type(
         MessageType::START_GAME_SESSION_RESPONSE
