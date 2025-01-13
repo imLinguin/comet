@@ -545,7 +545,7 @@ async fn unlock_user_achievement(
 
     // FIXME: Handle errors gracefully
     // Check with database first
-    let achievement = db::gameplay::get_achievement(context, ach_id)
+    let mut achievement = db::gameplay::get_achievement(context, ach_id)
         .await
         .expect("Failed to read database");
 
@@ -559,6 +559,8 @@ async fn unlock_user_achievement(
             .await
             .expect("Failed to write achievement to database");
         context.set_updated_achievements(true).await;
+        achievement.date_unlocked = timestamp_string;
+        let _ = context.achievement_sender().send(achievement);
     }
 
     let mut header = Header::new();
@@ -947,8 +949,8 @@ async fn start_game_session(
             .unwrap(),
     );
 
-    return Ok(ProtoPayload {
+    Ok(ProtoPayload {
         header,
         payload: vec![],
-    });
+    })
 }

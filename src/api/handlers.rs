@@ -22,10 +22,12 @@ use sqlx::Acquire;
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::TcpStream,
-    sync::broadcast::Receiver,
+    sync::broadcast::{Receiver, Sender},
     time,
 };
 use tokio_util::sync::CancellationToken;
+
+use super::gog::achievements::Achievement;
 
 pub async fn entry_point(
     mut socket: TcpStream,
@@ -33,6 +35,7 @@ pub async fn entry_point(
     token_store: TokenStorage,
     user_info: Arc<UserInfo>,
     mut topic_receiver: Receiver<PusherEvent>,
+    overlay_event_sender: Sender<Achievement>,
     shutdown_token: CancellationToken,
 ) {
     if let Err(err) = socket.readable().await {
@@ -40,7 +43,12 @@ pub async fn entry_point(
         let _ = socket.shutdown().await;
         return;
     }
-    let context = Arc::new(HandlerContext::new(socket, token_store));
+    let overlay_event_receiver = overlay_event_sender.subscribe();
+    let context = Arc::new(HandlerContext::new(
+        socket,
+        token_store,
+        overlay_event_sender,
+    ));
     debug!("Awaiting messages");
 
     let shutdown_token_clone = shutdown_token.clone();
@@ -89,6 +97,10 @@ pub async fn entry_point(
                     }
                 }
 
+                _ = time::sleep(time::Duration::from_secs(10)) => {
+                    sync_routine(&context_clone, &reqwest_clone, user_clone.clone()).await
+                },
+
                 topic_message = topic_receiver.recv() => {
                     match topic_message {
                         Ok(PusherEvent::Online) => {
@@ -119,6 +131,7 @@ pub async fn entry_point(
     let reqwest_clone = reqwest_client.clone();
     let user_clone = user_info.clone();
     let overlay_thread = tokio::spawn(async move {
+        let mut overlay_achievement_events = overlay_event_receiver;
         let overlay_listener: tokio::net::UnixListener = loop {
             if shutdown_token_clone.is_cancelled() {
                 return;
@@ -131,12 +144,12 @@ pub async fn entry_point(
                 }
             }
         };
-        let mut current_socket = loop {
+        let mut current_socket = {
             debug!("Waiting for overlay connection");
             tokio::select! {
                 Ok(res) = overlay_listener.accept() => {
                     let (socket, _addr) = res;
-                    break socket;
+                    socket
                 }
                 _ = shutdown_token_clone.cancelled() => {
                     return;
@@ -166,6 +179,13 @@ pub async fn entry_point(
                         }
                     }
                 }
+                Ok(achievement) = overlay_achievement_events.recv() => {
+                    if let Ok(res) = overlay_service::achievement_notification(achievement).await {
+                        if let Err(err) = current_socket.write_all(&res).await {
+                            error!("Failed to notify overlay about achievement {err}");
+                        }
+                    }
+                }
                 _ = shutdown_token_clone.cancelled() => {
                     break;
                 }
@@ -178,23 +198,6 @@ pub async fn entry_point(
         }
     });
 
-    let shutdown_token_clone = shutdown_token.clone();
-    let context_clone = context.clone();
-    let reqwest_clone = reqwest_client.clone();
-    let user_clone = user_info.clone();
-    tokio::spawn(async move {
-        loop {
-            tokio::select! {
-                _ = time::sleep(time::Duration::from_secs(10)) => {
-                    sync_routine(&context_clone, &reqwest_clone, user_clone.clone()).await
-                },
-
-                _ = shutdown_token_clone.cancelled() => {
-                    break
-                }
-            }
-        }
-    });
     let _ = main_socket.await;
     let _ = overlay_thread.await;
     let lock = context.overlay_listener().lock().await;

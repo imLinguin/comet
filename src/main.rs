@@ -1,6 +1,7 @@
 use std::time::Duration;
 use std::{collections::HashMap, sync::Arc};
 
+use api::gog::achievements::Achievement;
 use clap::{Parser, Subcommand};
 use env_logger::{Builder, Env, Target};
 use futures_util::future::join_all;
@@ -308,6 +309,7 @@ async fn main() {
     let cloned_user_info = user_info.clone();
 
     let (client_exit, mut con_exit_recv) = tokio::sync::mpsc::unbounded_channel::<bool>();
+    let (achievement_unlock_event, _recv) = tokio::sync::broadcast::channel::<Achievement>(32);
 
     let comet_idle_wait: u64 = match std::env::var("COMET_IDLE_WAIT") {
         Ok(wait) => wait.parse().unwrap_or(15),
@@ -346,6 +348,7 @@ async fn main() {
         let shutdown_handler = socket_shutdown.clone();
         let socket_user_info = cloned_user_info.clone();
         let client_exit = client_exit.clone();
+        let achievement_unlock_event = achievement_unlock_event.clone();
         active_clients += 1;
         ever_connected = args.quit;
         handlers.push(tokio::spawn(async move {
@@ -355,6 +358,7 @@ async fn main() {
                 cloned_token_store,
                 socket_user_info,
                 socket_topic_receiver,
+                achievement_unlock_event,
                 shutdown_handler,
             )
             .await;

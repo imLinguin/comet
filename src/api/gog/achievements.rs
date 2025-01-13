@@ -5,19 +5,19 @@ use derive_getters::Getters;
 use reqwest::{Client, Error};
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Debug, Getters)]
+#[derive(Deserialize, Debug, Clone, Getters)]
 pub struct Achievement {
-    achievement_id: String,
-    achievement_key: String,
-    name: String,
-    description: String,
-    image_url_locked: String,
-    image_url_unlocked: String,
-    visible: bool,
-    date_unlocked: Option<String>,
-    rarity: f32,
-    rarity_level_description: String,
-    rarity_level_slug: String,
+    pub achievement_id: String,
+    pub achievement_key: String,
+    pub name: String,
+    pub description: String,
+    pub image_url_locked: String,
+    pub image_url_unlocked: String,
+    pub visible: bool,
+    pub date_unlocked: Option<String>,
+    pub rarity: f32,
+    pub rarity_level_description: String,
+    pub rarity_level_slug: String,
 }
 
 impl Achievement {

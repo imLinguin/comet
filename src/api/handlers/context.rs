@@ -1,12 +1,13 @@
 use std::collections::HashSet;
 
+use crate::api::gog::achievements::Achievement;
 use crate::constants::TokenStorage;
 use crate::db;
 use derive_getters::Getters;
 use sqlx::SqlitePool;
 use tokio::io::AsyncReadExt;
 use tokio::net::TcpStream;
-use tokio::sync::{Mutex, MutexGuard};
+use tokio::sync::{broadcast, Mutex, MutexGuard};
 
 pub struct State {
     is_online: bool,
@@ -23,6 +24,7 @@ pub struct State {
 pub struct HandlerContext {
     socket: Mutex<TcpStream>,
     token_store: TokenStorage,
+    achievement_sender: broadcast::Sender<Achievement>,
     #[cfg(unix)]
     overlay_listener: Mutex<String>,
     #[getter(skip)]
@@ -32,7 +34,11 @@ pub struct HandlerContext {
 }
 
 impl HandlerContext {
-    pub fn new(socket: TcpStream, token_store: TokenStorage) -> Self {
+    pub fn new(
+        socket: TcpStream,
+        token_store: TokenStorage,
+        achievement_sender: broadcast::Sender<Achievement>,
+    ) -> Self {
         let state = Mutex::new(State {
             is_online: false,
             client_identified: false,
@@ -46,6 +52,7 @@ impl HandlerContext {
         Self {
             socket: Mutex::new(socket),
             token_store,
+            achievement_sender,
             db_connection: Mutex::new(None),
             overlay_listener: Mutex::new(String::default()),
             state,

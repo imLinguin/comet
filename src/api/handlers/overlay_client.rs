@@ -32,13 +32,10 @@ pub async fn entry_point(
 }
 
 async fn overlay_data_request(
-    payload: &ProtoPayload,
-    context: &HandlerContext,
+    _payload: &ProtoPayload,
+    _context: &HandlerContext,
     user_info: Arc<UserInfo>,
 ) -> Result<ProtoPayload, MessageHandlingError> {
-    let request = OverlayFrontendInitDataRequest::parse_from_bytes(&payload.payload)
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
-
     let init_data = json!(
     {
       "Languages": [
