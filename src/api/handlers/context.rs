@@ -1,6 +1,6 @@
 use std::collections::HashSet;
 
-use crate::api::gog::achievements::Achievement;
+use crate::api::gog::overlay::OverlayPeerMessage;
 use crate::constants::TokenStorage;
 use crate::db;
 use derive_getters::Getters;
@@ -18,13 +18,14 @@ pub struct State {
     updated_achievements: bool,
     updated_stats: bool,
     updated_leaderboards: bool,
+    pid: u32,
 }
 
 #[derive(Getters)]
 pub struct HandlerContext {
     socket: Mutex<TcpStream>,
     token_store: TokenStorage,
-    achievement_sender: broadcast::Sender<Achievement>,
+    overlay_sender: broadcast::Sender<(u32, OverlayPeerMessage)>,
     overlay_listener: Mutex<String>,
     #[getter(skip)]
     db_connection: Mutex<Option<SqlitePool>>,
@@ -36,7 +37,7 @@ impl HandlerContext {
     pub fn new(
         socket: TcpStream,
         token_store: TokenStorage,
-        achievement_sender: broadcast::Sender<Achievement>,
+        achievement_sender: broadcast::Sender<(u32, OverlayPeerMessage)>,
     ) -> Self {
         let state = Mutex::new(State {
             is_online: false,
@@ -47,11 +48,12 @@ impl HandlerContext {
             updated_achievements: false,
             updated_stats: false,
             updated_leaderboards: true,
+            pid: 0,
         });
         Self {
             socket: Mutex::new(socket),
             token_store,
-            achievement_sender,
+            overlay_sender: achievement_sender,
             db_connection: Mutex::new(None),
             overlay_listener: Mutex::new(String::default()),
             state,
@@ -66,11 +68,12 @@ impl HandlerContext {
         self.socket.lock().await.read_u16().await
     }
 
-    pub async fn identify_client(&self, client_id: &str, client_secret: &str) {
+    pub async fn identify_client(&self, client_id: &str, client_secret: &str, pid: u32) {
         let mut state = self.state.lock().await;
         state.client_identified = true;
         state.client_id = Some(client_id.to_string());
         state.client_secret = Some(client_secret.to_string());
+        state.pid = pid;
     }
 
     pub async fn set_online(&self) {
@@ -153,8 +156,13 @@ impl HandlerContext {
         self.state.lock().await.updated_leaderboards
     }
 
-    pub async fn register_overlay_listener(&self, listener: String) {
+    pub async fn get_pid(&self) -> u32 {
+        self.state.lock().await.pid
+    }
+
+    pub async fn register_overlay_listener(&self, pid: u32, listener: String) {
         let mut ov_listener = self.overlay_listener.lock().await;
+        self.state.lock().await.pid = pid;
         *ov_listener = listener;
     }
 }

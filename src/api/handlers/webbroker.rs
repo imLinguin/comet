@@ -44,6 +44,7 @@ async fn subscribe_topic_request(
     let topic = String::from(proto.topic());
 
     context.subscribe_topic(topic.clone()).await;
+    log::debug!("Webbroker subscribe to {}", topic);
     let mut new_data = SubscribeTopicResponse::new();
     let mut header = gog_protocols_pb::Header::new();
     header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());

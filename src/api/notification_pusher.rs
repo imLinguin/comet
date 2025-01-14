@@ -232,7 +232,19 @@ impl NotificationPusherClient {
                                             .unwrap(),
                                     );
                                     let mut oseq = 1020;
-                                    for topic in ["chat", "friends", "presence"] {
+                                    for topic in [
+                                        "chat",
+                                        "friends",
+                                        "presence",
+                                        "chat",
+                                        "chat:removed",
+                                        "user_notification",
+                                        "user_notification:consumed",
+                                        "user_notification:removed",
+                                        "friends",
+                                        "presence",
+                                        "external_users",
+                                    ] {
                                         let mut message_buffer: Vec<u8> = Vec::new();
                                         let mut request_data = SubscribeTopicRequest::new();
                                         request_data.set_topic(String::from(topic));

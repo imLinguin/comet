@@ -13,16 +13,17 @@ pub async fn entry_point(
     payload: &ProtoPayload,
     context: &HandlerContext,
     user_info: Arc<UserInfo>,
+    reqwest_client: &reqwest::Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let header = &payload.header;
 
     let message_type: i32 = header.type_().try_into().unwrap();
 
     if message_type == MessageType::OVERLAY_FRONTEND_INIT_DATA_REQUEST.value() {
-        overlay_data_request(payload, context, user_info).await
+        overlay_data_request(payload, context, user_info, reqwest_client).await
     } else {
         warn!(
-            "Received unsupported webbroker message type {}",
+            "Received unsupported ov_client message type {}",
             message_type
         );
         Err(MessageHandlingError::new(
@@ -35,7 +36,45 @@ async fn overlay_data_request(
     _payload: &ProtoPayload,
     _context: &HandlerContext,
     user_info: Arc<UserInfo>,
+    reqwest_client: &reqwest::Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
+    let game_id: String = std::env::var("HEROIC_APP_NAME").unwrap_or_default();
+    let default_data = json! ({
+        "id": "",
+        "title": "Comet",
+        "images": {
+            "icon": "https://raw.githubusercontent.com/Heroic-Games-Launcher/HeroicGamesLauncher/main/public/icon.png",
+            "logo": "https://raw.githubusercontent.com/Heroic-Games-Launcher/HeroicGamesLauncher/main/public/icon.png",
+            "logo2x": "https://raw.githubusercontent.com/Heroic-Games-Launcher/HeroicGamesLauncher/main/public/icon.png",
+        }
+    });
+    let game_details = if !game_id.is_empty() {
+        if let Ok(res) = reqwest_client
+            .get(format!("https://api.gog.com/products/{}", game_id))
+            .send()
+            .await
+        {
+            if let Ok(mut res) = res.json::<serde_json::Value>().await {
+                if let Some(serde_json::Value::Object(ref mut images)) = res.get_mut("images") {
+                    for (_key, url_value) in images.iter_mut() {
+                        if let serde_json::Value::String(url) = url_value {
+                            if url.starts_with("//") {
+                                *url_value = serde_json::Value::String(format!("https:{}", url));
+                            }
+                        }
+                    }
+                }
+                res
+            } else {
+                default_data
+            }
+        } else {
+            default_data
+        }
+    } else {
+        default_data
+    };
+
     let init_data = json!(
     {
       "Languages": [
@@ -74,6 +113,7 @@ async fn overlay_data_request(
         "notifSoundGameInvite": true,
         "notifSoundVolume": 50,
         "showFriendsSidebar": true,
+        "overlayNotificationsPosition": "bottom_right",
         "store": {}
       },
       "Config": {
@@ -95,7 +135,8 @@ async fn overlay_data_request(
           "galaxyPromos": "https://galaxy-promos.gog.com",
           "remoteConfigurationHost": "https://remote-config.gog.com",
           "recommendations": "https://recommendations-api.gog.com",
-          "overlayWeb": "https://overlay.gog.com"
+          "overlayWeb": "https://overlay.gog.com",
+          "OverlayWeb": "https://overlay.gog.com"
         },
         "GalaxyClientId": "46899977096215655",
         "ChangelogBasePath": "",
@@ -107,15 +148,7 @@ async fn overlay_data_request(
       },
       "Game": {
           "ProductId": "",
-          "ProductDetails": {
-              "id": "",
-              "title": "Comet",
-              "images": {
-                  "icon": "https://raw.githubusercontent.com/Heroic-Games-Launcher/HeroicGamesLauncher/main/public/icon.png",
-                  "logo": "https://raw.githubusercontent.com/Heroic-Games-Launcher/HeroicGamesLauncher/main/public/icon.png",
-                  "logo2x": "https://raw.githubusercontent.com/Heroic-Games-Launcher/HeroicGamesLauncher/main/public/icon.png",
-              }
-          }
+          "ProductDetails": game_details
       }
     });
 

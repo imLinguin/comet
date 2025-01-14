@@ -2,6 +2,7 @@ mod communication_service;
 pub mod context;
 pub mod error;
 mod overlay_client;
+mod overlay_peer;
 mod overlay_service;
 pub mod utils;
 mod webbroker;
@@ -27,7 +28,7 @@ use tokio::{
 };
 use tokio_util::sync::CancellationToken;
 
-use super::gog::achievements::Achievement;
+use super::gog::overlay::OverlayPeerMessage;
 
 pub async fn entry_point(
     mut socket: TcpStream,
@@ -35,7 +36,7 @@ pub async fn entry_point(
     token_store: TokenStorage,
     user_info: Arc<UserInfo>,
     mut topic_receiver: Receiver<PusherEvent>,
-    overlay_event_sender: Sender<Achievement>,
+    overlay_event_sender: Sender<(u32, OverlayPeerMessage)>,
     shutdown_token: CancellationToken,
 ) {
     if let Err(err) = socket.readable().await {
@@ -55,6 +56,8 @@ pub async fn entry_point(
     let context_clone = context.clone();
     let reqwest_clone = reqwest_client.clone();
     let user_clone = user_info.clone();
+    let mut topic_receiver_clone = topic_receiver.resubscribe();
+    let mut overlay_event_receiver_clone = overlay_event_receiver.resubscribe();
     let main_socket = tokio::spawn(async move {
         loop {
             tokio::select! {
@@ -72,6 +75,7 @@ pub async fn entry_point(
                                 },
                                 Err(err) => {
                                     match err.kind {
+                                        MessageHandlingErrorKind::Ignored => (),
                                         MessageHandlingErrorKind::NotImplemented => {
                                             warn!("Request type not implemented")
                                         },
@@ -101,7 +105,22 @@ pub async fn entry_point(
                     sync_routine(&context_clone, &reqwest_clone, user_clone.clone()).await
                 },
 
-                topic_message = topic_receiver.recv() => {
+                Ok((pid, data)) = overlay_event_receiver_clone.recv() => {
+                    if context_clone.get_pid().await != pid {continue}
+
+                    match data {
+                        OverlayPeerMessage::VisibilityChange(visible) => {
+                            if let Ok(res) = overlay_peer::encode_visibility_change(visible).await {
+                                if let Err(err) = context_clone.socket_mut().await.write_all(&res).await {
+                                    error!("Failed to notify game of overlay visibility {err}");
+                                }
+                            }
+                        },
+                        _ => ()
+                    }
+                }
+
+                topic_message = topic_receiver_clone.recv() => {
                     match topic_message {
                         Ok(PusherEvent::Online) => {
                                 context_clone.set_online().await
@@ -131,7 +150,7 @@ pub async fn entry_point(
     let reqwest_clone = reqwest_client.clone();
     let user_clone = user_info.clone();
     let overlay_thread = tokio::spawn(async move {
-        let mut overlay_achievement_events = overlay_event_receiver;
+        let mut overlay_receiver = overlay_event_receiver;
         #[cfg(unix)]
         let overlay_listener: tokio::net::UnixListener = loop {
             if shutdown_token_clone.is_cancelled() {
@@ -176,6 +195,7 @@ pub async fn entry_point(
                 }
             }
         };
+        let game_pid = context_clone.get_pid().await;
         loop {
             tokio::select! {
                 size_read = current_socket.read_u16() => {
@@ -187,7 +207,7 @@ pub async fn entry_point(
                                 Ok(res) => {
                                     let _ = current_socket.write_all(&res).await;
                                 },
-                                Err(err) => error!("Failed to respond to overlay {err:?}"),
+                                Err(err) => { if !matches!(err.kind, MessageHandlingErrorKind::Ignored) {  error!("Failed to respond to overlay {err:?}") } },
                             }
                         },
                         Err(err) => {
@@ -199,11 +219,37 @@ pub async fn entry_point(
                         }
                     }
                 }
-                Ok(achievement) = overlay_achievement_events.recv() => {
-                    if let Ok(res) = overlay_service::achievement_notification(achievement).await {
-                        if let Err(err) = current_socket.write_all(&res).await {
-                            error!("Failed to notify overlay about achievement {err}");
+                Ok((pid,msg)) = overlay_receiver.recv() => {
+                    if pid != game_pid { continue }
+                    let data: Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> = match msg {
+                        OverlayPeerMessage::Achievement(achievement) => overlay_service::achievement_notification(achievement).await,
+                        OverlayPeerMessage::OpenWebPage(page) => overlay_peer::encode_open_web_page(page).await,
+                        OverlayPeerMessage::InvitationDialog(con) => overlay_peer::encode_game_invite(con).await,
+                        _ => Err(MessageHandlingError::new(MessageHandlingErrorKind::Ignored).into())
+                    };
+                    if let Ok(data) = data {
+                        if let Err(err) = current_socket.write_all(&data).await {
+                            error!("Failed to send web page request {err}");
                         }
+                    }
+                }
+                topic_message = topic_receiver.recv() => {
+                    match topic_message {
+                        Ok(PusherEvent::Online) => {
+                                context_clone.set_online().await
+                        },
+                        Ok(PusherEvent::Offline) => {
+                            context_clone.set_offline().await
+                        },
+                        Ok(PusherEvent::Topic(message, topic)) => {
+                            if context_clone.is_subscribed(&topic).await {
+                                if let Err(err) = current_socket.write_all(message.as_slice()).await {
+                                    error!("Failed to forward topic message to socket {}", err);
+                                }
+                                debug!("Forwarded topic message");
+                            }
+                        },
+                        Err(err) => { error!("Failed to read topic_message {}", err); }
                     }
                 }
                 _ = shutdown_token_clone.cancelled() => {
@@ -243,7 +289,8 @@ pub async fn handle_message(
         1 => communication_service::entry_point(&payload, context, user_info, reqwest_client).await,
         2 => webbroker::entry_point(&payload, context).await,
         3 => overlay_service::entry_point(&payload, context).await,
-        7 => overlay_client::entry_point(&payload, context, user_info).await,
+        6 => overlay_peer::entry_point(&payload, context).await,
+        7 => overlay_client::entry_point(&payload, context, user_info, reqwest_client).await,
         _ => {
             warn!("Unhandled sort {}", sort);
             Err(MessageHandlingError::new(
@@ -284,8 +331,12 @@ async fn sync_routine(context: &HandlerContext, reqwest_client: &Client, user_in
         return;
     }
     let mut token_store = context.token_store().lock().await;
-    let client_id = &context.client_id().await.unwrap();
-    let client_secret = &context.client_secret().await.unwrap();
+    let Some(client_id) = &context.client_id().await else {
+        return;
+    };
+    let Some(client_secret) = &context.client_secret().await else {
+        return;
+    };
     let current_token = token_store.get(client_id);
     if let Some(token) = current_token {
         let current_time = chrono::Utc::now();

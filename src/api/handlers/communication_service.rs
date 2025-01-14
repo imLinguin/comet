@@ -1,4 +1,5 @@
 use crate::api::gog;
+use crate::api::gog::overlay::OverlayPeerMessage;
 use crate::api::gog::stats::FieldValue;
 use crate::api::handlers::context::HandlerContext;
 use crate::api::structs::{DataSource, IDType, UserInfo};
@@ -136,13 +137,13 @@ async fn auth_info_request(
     let client_id = request_data.client_id();
     let client_secret = request_data.client_secret();
     let openid = request_data.openid();
+    let pid = request_data.game_pid();
 
     if !context.client_identified().await {
-        context.identify_client(client_id, client_secret).await;
+        context.identify_client(client_id, client_secret, pid).await;
         info!("Client identified as {} {}", client_id, client_secret);
     }
 
-    let pid = request_data.game_pid();
     info!("Game PID: {}", pid);
 
     let token_storage = context.token_store().lock().await;
@@ -560,7 +561,10 @@ async fn unlock_user_achievement(
             .expect("Failed to write achievement to database");
         context.set_updated_achievements(true).await;
         achievement.date_unlocked = timestamp_string;
-        let _ = context.achievement_sender().send(achievement);
+        let pid = context.get_pid().await;
+        let _ = context
+            .overlay_sender()
+            .send((pid, OverlayPeerMessage::Achievement(achievement)));
     }
 
     let mut header = Header::new();
@@ -939,7 +943,9 @@ async fn start_game_session(
             "/tmp/Galaxy-{}-CommunicationService-Overlay",
             request.game_pid()
         );
-        context.register_overlay_listener(pipe_name).await;
+        context
+            .register_overlay_listener(request.game_pid(), pipe_name)
+            .await;
     }
     #[cfg(windows)]
     {
@@ -947,7 +953,9 @@ async fn start_game_session(
             r"\\.\pipe\Galaxy-{}-CommunicationService-Overlay",
             request.game_pid()
         );
-        context.register_overlay_listener(pipe_name).await;
+        context
+            .register_overlay_listener(request.game_pid(), pipe_name)
+            .await;
     }
     let mut header = Header::new();
     header.set_type(

@@ -40,12 +40,20 @@ Project is continuation of Yepoleb's work https://gitlab.com/Yepoleb/comet/ but 
 
 ### Overlay
 
+This includes calls made to be forwarded to game process
+
 - [x] START_GAME_SESSION_REQUEST 
 - [x] OVERLAY_FRONTEND_INIT_DATA_REQUEST
 - [x] OVERLAY_STATE_CHANGE_NOTIFICATION
 - [x] ACCESS_TOKEN_REQUEST
 - [x] OVERLAY_INITIALIZATION_NOTIFICATION
 - [x] NOTIFY_ACHIEVEMENT_UNLOCKED 
+- [x] SHOW_WEB_PAGE 
+- [x] VISIBILITY_CHANGE_NOTIFICATION
+- [x] SHOW_INVITATION_DIALOG
+- [ ] GAME_JOIN_REQUEST_NOTIFICATION
+- [ ] GAME_INVITE_SENT_NOTIFICATION
+
 
 ## How to use
 

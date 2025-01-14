@@ -22,7 +22,7 @@ pub async fn entry_point(
         Err(MessageHandlingError::new(MessageHandlingErrorKind::Ignored))
     } else {
         warn!(
-            "Received unsupported webbroker message type {}",
+            "Received unsupported ov_service message type {}",
             message_type
         );
         Err(MessageHandlingError::new(
