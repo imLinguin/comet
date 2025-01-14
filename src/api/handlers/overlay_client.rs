@@ -147,7 +147,7 @@ async fn overlay_data_request(
           "UserId": user_info.galaxy_user_id.clone()
       },
       "Game": {
-          "ProductId": "",
+          "ProductId": game_id,
           "ProductDetails": game_details
       }
     });
