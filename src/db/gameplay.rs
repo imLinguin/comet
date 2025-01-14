@@ -15,8 +15,8 @@ CREATE INDEX IF NOT EXISTS `is_leaderboard_score_changed` on leaderboard (change
 CREATE INDEX IF NOT EXISTS `is_achievement_changed` ON achievement (changed);
 CREATE INDEX IF NOT EXISTS `is_statistic_changed` ON statistic (changed);
 CREATE TABLE IF NOT EXISTS `game_info` (`time_played` INTEGER NOT NULL);
-CREATE TABLE IF NOT EXISTS `int_statistic` (`id` INTEGER REFERENCES statistic ( id ) NOT NULL,`value` INTEGER NOT NULL DEFAULT 0,`default_value` INTEGER NOT NULL DEFAULT 0,`min_value` INTEGER,`max_value` INTEGER,`max_change` INTEGER);
-CREATE TABLE IF NOT EXISTS `float_statistic` (`id` INTEGER REFERENCES statistic ( id ) NOT NULL,`value` REAL NOT NULL DEFAULT 0,`default_value` REAL NOT NULL DEFAULT 0,`min_value` REAL,`max_value` REAL,`max_change` REAL,`window` REAL DEFAULT NULL);
+CREATE TABLE IF NOT EXISTS `int_statistic` (`id` INTEGER REFERENCES statistic ( id ) NOT NULL UNIQUE,`value` INTEGER NOT NULL DEFAULT 0,`default_value` INTEGER NOT NULL DEFAULT 0,`min_value` INTEGER,`max_value` INTEGER,`max_change` INTEGER);
+CREATE TABLE IF NOT EXISTS `float_statistic` (`id` INTEGER REFERENCES statistic ( id ) NOT NULL UNIQUE,`value` REAL NOT NULL DEFAULT 0,`default_value` REAL NOT NULL DEFAULT 0,`min_value` REAL,`max_value` REAL,`max_change` REAL,`window` REAL DEFAULT NULL);
 CREATE TABLE IF NOT EXISTS `database_info` (`key` TEXT PRIMARY KEY NOT NULL,`value` TEXT NOT NULL);
 "#;
 
@@ -167,7 +167,7 @@ pub async fn set_statistics(database: SqlitePool, stats: &Vec<Stat>) -> Result<(
             } => {
                 log::debug!("Inserting int");
                 sqlx::query(
-                    "INSERT INTO int_statistic VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT 
+                    "INSERT INTO int_statistic VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id)
                     DO UPDATE SET value=excluded.value, default_value=excluded.default_value,
                     min_value=excluded.min_value, max_change=excluded.max_change 
                     WHERE int_statistic.id NOT IN (SELECT id FROM statistic WHERE changed=1)",
@@ -198,7 +198,7 @@ pub async fn set_statistics(database: SqlitePool, stats: &Vec<Stat>) -> Result<(
             } => {
                 log::debug!("Inserting float");
                 sqlx::query(
-                    "INSERT INTO float_statistic VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT
+                    "INSERT INTO float_statistic VALUES ($1, $2, $3, $4, $5, $6, $7) ON CONFLICT (id)
                     DO UPDATE SET value=excluded.value, default_value=excluded.default_value,
                     min_value=excluded.min_value, max_change=excluded.max_change, window=excluded.window
                     WHERE float_statistic.id NOT IN (SELECT id FROM statistic WHERE changed=1)",
