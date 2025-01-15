@@ -31,6 +31,7 @@ serde_ini = "0.2.0"
 toml = "0.8.19"
 sys-locale = "0.3.2"
 futures = "0.3.31"
+rand = "0.8.5"
 
 [build-dependencies]
 protobuf-codegen = "3.4.0"

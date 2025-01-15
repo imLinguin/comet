@@ -9,6 +9,10 @@ use serde_json::json;
 
 use super::{context::HandlerContext, MessageHandlingError, MessageHandlingErrorKind};
 
+// THIS CODE ARE MOSTLY STUBS FOR OVERLAY
+// The Galaxy Overlay has ties with GOG Galaxy Client, and expects support for the same methods
+// that are normally handled via CEF's IPC.
+
 pub async fn entry_point(
     payload: &ProtoPayload,
     context: &HandlerContext,
@@ -21,6 +25,8 @@ pub async fn entry_point(
 
     if message_type == MessageType::OVERLAY_FRONTEND_INIT_DATA_REQUEST.value() {
         overlay_data_request(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::OVERLAY_TO_CLIENT_REQUEST.value() {
+        client_request(payload, context, reqwest_client).await
     } else {
         warn!(
             "Received unsupported ov_client message type {}",
@@ -75,6 +81,11 @@ async fn overlay_data_request(
         default_data
     };
 
+    #[cfg(not(debug_assertions))]
+    let log_level = 5;
+    #[cfg(debug_assertions)]
+    let log_level = 8;
+
     let init_data = json!(
     {
       "Languages": [
@@ -98,19 +109,18 @@ async fn overlay_data_request(
       ],
       "SettingsData": {
         "languageCode": crate::LOCALE.clone(),
-        "notifChatMessage": true,
-        "notifDownloadStatus": true,
-        "notifDownloadStatus_overlay": true,
-        "notifFriendInvite": true,
-        "notifFriendOnline": true,
-        "notifFriendStartsGame": true,
-        "notifGameInvite": true,
-        "notifSoundChatMessage": true,
+        "notifChatMessage": { "overlay": true },
+        "notifDownloadStatus": { "overlay": true },
+        "notifFriendInvite": { "overlay": true },
+        "notifFriendOnline": { "overlay": true },
+        "notifFriendStartsGame": { "overlay": true },
+        "notifGameInvite": { "overlay": true },
+        "notifSoundChatMessage": { "overlay": true },
         "notifSoundDownloadStatus": false,
-        "notifSoundFriendInvite": true,
-        "notifSoundFriendOnline": true,
-        "notifSoundFriendStartsGame": true,
-        "notifSoundGameInvite": true,
+        "notifSoundFriendInvite": { "overlay": true },
+        "notifSoundFriendOnline": { "overlay": true },
+        "notifSoundFriendStartsGame": { "overlay": true },
+        "notifSoundGameInvite": { "overlay": true },
         "notifSoundVolume": 50,
         "showFriendsSidebar": true,
         "overlayNotificationsPosition": "bottom_right",
@@ -140,7 +150,7 @@ async fn overlay_data_request(
         },
         "GalaxyClientId": "46899977096215655",
         "ChangelogBasePath": "",
-        "LoggingLevel": 5,
+        "LoggingLevel": log_level,
         "ClientVersions": { "Major": 2, "Minor": 0, "Build": 75, "Compilation": 1 }
       },
       "User": {
@@ -169,4 +179,78 @@ async fn overlay_data_request(
     header.set_size(payload.len().try_into().unwrap());
 
     Ok(ProtoPayload { header, payload })
+}
+
+// Thanks, I hate it
+async fn client_request(
+    payload: &ProtoPayload,
+    _context: &HandlerContext,
+    reqwest_client: &reqwest::Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    let request = OverlayToClientRequest::parse_from_bytes(&payload.payload)
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+    let parsed_request: serde_json::Value = serde_json::from_str(request.data())
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Json(err)))?;
+
+    let command = parsed_request.get("Command");
+    let json_data: serde_json::Value = match command {
+        Some(serde_json::Value::String(product_details_key))
+            if product_details_key == "FetchProductDetails" =>
+        {
+            load_products(parsed_request, reqwest_client).await
+        }
+        _ => json!({}),
+    };
+
+    let mut res = OverlayToClientResponse::new();
+    res.set_data(json_data.to_string());
+    let payload = res
+        .write_to_bytes()
+        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+
+    let mut header = gog_protocols_pb::Header::new();
+    header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());
+    header.set_type(
+        MessageType::OVERLAY_FRONTEND_INIT_DATA_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+    header.set_size(payload.len().try_into().unwrap());
+
+    Ok(ProtoPayload { header, payload })
+}
+
+async fn load_products(
+    parsed_request: serde_json::Value,
+    reqwest_client: &reqwest::Client,
+) -> serde_json::Value {
+    if let Some(arguments) = parsed_request.get("Arguments") {
+        if let Some(ids) = arguments.get("ProductIds") {
+            let ids = ids.as_array().unwrap();
+            let mut products: Vec<serde_json::Value> = Vec::with_capacity(ids.len());
+            for id in ids {
+                if let Ok(res) = reqwest_client
+                    .get(format!(
+                        "https://api.gog.com/products/{}",
+                        id.as_str().unwrap()
+                    ))
+                    .send()
+                    .await
+                {
+                    if let Ok(data) = res.json::<serde_json::Value>().await {
+                        products.push(data);
+                    }
+                }
+            }
+            return json!({
+                "Command": "ProductDetailsUpdate",
+                "Arguments": {
+                    "Values": products
+                }
+            });
+        }
+    }
+
+    json!({})
 }

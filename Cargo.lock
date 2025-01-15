@@ -332,6 +332,7 @@ dependencies = [
  "protobuf",
  "protobuf-codegen",
  "protoc-bin-vendored",
+ "rand",
  "reqwest",
  "rustls 0.22.4",
  "rustls-pemfile",

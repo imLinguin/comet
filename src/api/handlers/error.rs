@@ -7,6 +7,7 @@ pub enum MessageHandlingErrorKind {
     DB(sqlx::Error),
     Network(reqwest::Error),
     Proto(protobuf::Error),
+    Json(serde_json::Error),
 }
 
 #[derive(Debug)]

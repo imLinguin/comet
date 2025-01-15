@@ -116,6 +116,13 @@ pub async fn entry_point(
                                 }
                             }
                         },
+                        OverlayPeerMessage::GameJoin(join_data) => {
+                            if let Ok(res) = overlay_peer::encode_game_join(join_data).await {
+                                if let Err(err) = context_clone.socket_mut().await.write_all(&res).await {
+                                    error!("Failed to notify game of overlay visibility {err}");
+                                }
+                            }
+                        }
                         _ => ()
                     }
                 }
@@ -225,6 +232,7 @@ pub async fn entry_point(
                         OverlayPeerMessage::Achievement(achievement) => overlay_service::achievement_notification(achievement).await,
                         OverlayPeerMessage::OpenWebPage(page) => overlay_peer::encode_open_web_page(page).await,
                         OverlayPeerMessage::InvitationDialog(con) => overlay_peer::encode_game_invite(con).await,
+                        OverlayPeerMessage::DisablePopups(data) => overlay_peer::encode_overlay_initialized(data).await,
                         _ => Err(MessageHandlingError::new(MessageHandlingErrorKind::Ignored).into())
                     };
                     if let Ok(data) = data {
