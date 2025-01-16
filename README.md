@@ -1,8 +1,8 @@
 # Comet
+
 [![Build nightly](https://github.com/imLinguin/comet/actions/workflows/build.yml/badge.svg)](https://github.com/imLinguin/comet/actions/workflows/build.yml)
 [![Version](https://img.shields.io/github/v/release/imLinguin/comet?label=version)](https://github.com/imLinguin/comet/releases/latest)
 [![Static Badge](https://img.shields.io/badge/Steam%20Deck%20Usage%20Guide-darkslategrey?logo=steamdeck)](docs/steamdeck/USAGE.md)
-
 
 Open Source implementation of GOG Galaxy's Communication Service
 
@@ -13,7 +13,6 @@ This will provide minimal and platform-agnostic SDK. For use in game launchers l
 
 Project is continuation of Yepoleb's work https://gitlab.com/Yepoleb/comet/ but in
 ~~Python~~ [now in Rust](https://github.com/imLinguin/comet/issues/15)
-
 
 ## Supported Requests
 
@@ -42,18 +41,17 @@ Project is continuation of Yepoleb's work https://gitlab.com/Yepoleb/comet/ but 
 
 This includes calls made to be forwarded to game process
 
-- [x] START_GAME_SESSION_REQUEST 
+- [x] START_GAME_SESSION_REQUEST
 - [x] OVERLAY_FRONTEND_INIT_DATA_REQUEST
 - [x] OVERLAY_STATE_CHANGE_NOTIFICATION
 - [x] ACCESS_TOKEN_REQUEST
 - [x] OVERLAY_INITIALIZATION_NOTIFICATION
-- [x] NOTIFY_ACHIEVEMENT_UNLOCKED 
-- [x] SHOW_WEB_PAGE 
+- [x] NOTIFY_ACHIEVEMENT_UNLOCKED
+- [x] SHOW_WEB_PAGE
 - [x] VISIBILITY_CHANGE_NOTIFICATION
 - [x] SHOW_INVITATION_DIALOG
 - [ ] GAME_JOIN_REQUEST_NOTIFICATION
 - [ ] GAME_INVITE_SENT_NOTIFICATION
-
 
 ## How to use
 
@@ -61,7 +59,7 @@ Comet integration in game launchers
 
 - Heroic - ✅ an experimental feature enabled by default (as of 2.15.0)
 - Lutris - ❓ planned, no ETA
-- Minigalaxy - ❓ open for Pull Requests 
+- Minigalaxy - ❓ open for Pull Requests
 
 For manual instructions see [running](#running)
 
@@ -85,7 +83,6 @@ Use `--from-lutris` for automatic import.
 
 Log in to GOG in wyvern  
 Use `--from-wyvern` for automatic import.
-
 
 #### Via [gogdl](https://github.com/Heroic-Games-Launcher/heroic-gogdl) (CLI)
 
@@ -118,16 +115,60 @@ comet --from-heroic --username <USERNAME>
 ```
 
 Or Lutris
+
 ```
 comet --from-lutris --username <USERNAME>
 ```
 
 Or wyvern
+
 ```
 comet --from-wyvern --username <USERNAME>
 ```
 
 Or use the shortcut script provided for non-Steam shortcuts. See the [Steam Deck Usage Guide](docs/steamdeck/USAGE.md).
+
+## Configuration
+
+You can adjust basic overlay settings with comet configuration file.  
+File locations:
+
+- Windows - `%APPDATA%/comet/config.toml`
+- Mac - `~/Library/Application Support/comet/config.toml`
+- Linux - `$XDG_CONFIG_HOME/comet/config.toml`
+
+Default configuration file is as follows
+
+```toml
+[overlay]
+notification_volume = 50  # value from 0 to 100
+position = "bottom_right" # position where notifications are shown: top_left top_right bottom_left bottom_right
+
+# Controls chat message notifications
+[overlay.notifications.chat]
+enabled = true
+sound= true
+
+# Controls notifications when friend becomes online
+[overlay.notifications.friend_online]
+enabled = true
+sound= true
+
+# Controls notifications when someone sends you a friend invititation
+[overlay.notifications.friend_invite]
+enabled = true
+sound= true
+
+# Controls notifications when friend starts playing a game
+[overlay.notifications.friend_game_start]
+enabled = true
+sound= true
+
+# Controls notifications when someone sends you a game invite
+[overlay.notifications.game_invite]
+enabled = true
+sound= true
+```
 
 ## Contributing
 
@@ -152,4 +193,3 @@ when placed next to game .exe it will write GalaxyPeer.log when the game is runn
 
 If you want to contribute financially you can do so via my [Ko-Fi](https://ko-fi.com/imlinguin).  
 You can also use any of the options to [support Heroic](https://heroicgameslauncher.com/donate)
-

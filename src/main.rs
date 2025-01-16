@@ -12,6 +12,7 @@ use tokio::sync::Mutex;
 #[macro_use]
 extern crate lazy_static;
 mod api;
+mod config;
 mod constants;
 mod db;
 mod import_parsers;
@@ -89,6 +90,7 @@ struct Args {
 
 lazy_static! {
     static ref LOCALE: String = sys_locale::get_locale().unwrap_or_else(|| String::from("en-US"));
+    static ref CONFIG: config::Configuration = config::load_config().unwrap_or_default();
 }
 
 #[tokio::main]
@@ -100,6 +102,7 @@ async fn main() {
         .filter_module("h2::codec", log::LevelFilter::Off)
         .init();
 
+    log::debug!("Configuration file {:?}", *CONFIG);
     log::info!("Preferred language: {}", LOCALE.as_str());
 
     let (access_token, refresh_token, galaxy_user_id) =

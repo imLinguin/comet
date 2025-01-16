@@ -3,6 +3,7 @@ use std::sync::Arc;
 use crate::api::structs::UserInfo;
 use crate::proto::galaxy_protocols_overlay_for_client::*;
 use crate::proto::{common_utils::ProtoPayload, gog_protocols_pb};
+use crate::CONFIG;
 use log::warn;
 use protobuf::{Enum, Message};
 use serde_json::json;
@@ -109,21 +110,21 @@ async fn overlay_data_request(
       ],
       "SettingsData": {
         "languageCode": crate::LOCALE.clone(),
-        "notifChatMessage": { "overlay": true },
+        "notifChatMessage": { "overlay": CONFIG.overlay.notifications.chat.enabled },
         "notifDownloadStatus": { "overlay": true },
-        "notifFriendInvite": { "overlay": true },
-        "notifFriendOnline": { "overlay": true },
-        "notifFriendStartsGame": { "overlay": true },
-        "notifGameInvite": { "overlay": true },
-        "notifSoundChatMessage": { "overlay": true },
+        "notifFriendInvite": { "overlay": CONFIG.overlay.notifications.friend_invite.enabled },
+        "notifFriendOnline": { "overlay": CONFIG.overlay.notifications.friend_online.enabled },
+        "notifFriendStartsGame": { "overlay":CONFIG.overlay.notifications.friend_game_start.enabled},
+        "notifGameInvite": { "overlay": CONFIG.overlay.notifications.game_invite.enabled},
+        "notifSoundChatMessage": { "overlay": CONFIG.overlay.notifications.chat.sound },
         "notifSoundDownloadStatus": false,
-        "notifSoundFriendInvite": { "overlay": true },
-        "notifSoundFriendOnline": { "overlay": true },
-        "notifSoundFriendStartsGame": { "overlay": true },
-        "notifSoundGameInvite": { "overlay": true },
-        "notifSoundVolume": 50,
+        "notifSoundFriendInvite": { "overlay": CONFIG.overlay.notifications.friend_invite.sound },
+        "notifSoundFriendOnline": { "overlay": CONFIG.overlay.notifications.friend_online.sound },
+        "notifSoundFriendStartsGame": { "overlay": CONFIG.overlay.notifications.friend_game_start.sound },
+        "notifSoundGameInvite": { "overlay": CONFIG.overlay.notifications.game_invite.sound },
+        "notifSoundVolume": CONFIG.overlay.notification_volume.clamp(0, 100),
         "showFriendsSidebar": true,
-        "overlayNotificationsPosition": "bottom_right",
+        "overlayNotificationsPosition": CONFIG.overlay.position.to_string(),
         "store": {}
       },
       "Config": {
@@ -146,7 +147,6 @@ async fn overlay_data_request(
           "remoteConfigurationHost": "https://remote-config.gog.com",
           "recommendations": "https://recommendations-api.gog.com",
           "overlayWeb": "https://overlay.gog.com",
-          "OverlayWeb": "https://overlay.gog.com"
         },
         "GalaxyClientId": "46899977096215655",
         "ChangelogBasePath": "",
