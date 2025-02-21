@@ -175,7 +175,7 @@ sound= true
 Join [Heroic Discord](https://discord.gg/rHJ2uqdquK) and reach out to us on
 special [thread](https://discord.com/channels/812703221789097985/1074048840958742648)
 
-[Here](https://imlinguin.vercel.app/blog/galaxy-comm-serv-re-setup) you can find a blog post about setting up
+[Here](https://linguin.dev/blog/galaxy-comm-serv-re-setup) you can find a blog post about setting up
 environment for tracing the Communication Service calls (involving Proxifier and custom mitmproxy)
 
 Reverse engineered protobuf definitions are available here: https://github.com/Yepoleb/gog_protocols
