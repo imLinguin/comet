@@ -1,4 +1,4 @@
-# Comet
+<img src="external/comet logo.png" width=450>
 
 [![Build nightly](https://github.com/imLinguin/comet/actions/workflows/build.yml/badge.svg)](https://github.com/imLinguin/comet/actions/workflows/build.yml)
 [![Version](https://img.shields.io/github/v/release/imLinguin/comet?label=version)](https://github.com/imLinguin/comet/releases/latest)
