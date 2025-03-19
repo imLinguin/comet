@@ -13,7 +13,8 @@ This section describes how to use Galaxy overlay with comet.
   ```
   comet --from-heroic --username <username> overlay --force
   ```
-- Start comet (right now you need latest build from git)
+- `HEROIC_APP_NAME` environment variable allows comet to load metadata for given app and give context to overlay itself. (this is required for welcome popup and in-game invites)
+- Start comet, at least v0.3.0
 - Run the game
 
 ## Running the game
@@ -31,6 +32,44 @@ GAMEID=0 STEAM_COMPAT_INSTALL_PATH=/game/install/location umu-run galaxy.exe gam
 - umu-run - umu entry point
 - galaxy.exe - main executable of galaxy-helper. It should be located together with its `libgalaxyunixlib.dll.so`. The exe doesn't need to be in your current directory - just ensure to provide full path to its location.
 - game.exe - normal command you'd run to start the game.
+
+## Doing this in Heroic (LINUX)
+Until overlay support ships in Heroic itself its still possible to add injection code.  
+You need to create custom wrapper script that will modify the launch command to include path to `galaxy.exe` before game executable itself. Make sure the executable is in location that is accessible from within umu container.
+
+```bash
+#!/bin/bash
+
+# Static path to insert
+INSERT_PATH="/path/to/galaxy.exe"
+
+NEW_ARGS=()
+PREV_MATCHED=false
+
+for arg in "$@"; do
+    if [[ "$PREV_MATCHED" == true ]]; then
+        NEW_ARGS+=("$INSERT_PATH")
+        PREV_MATCHED=false
+    fi
+    NEW_ARGS+=("$arg")
+    if [[ "$arg" == *"umu-run" || "$arg" == *"umu-run.py" ]]; then
+        PREV_MATCHED=true
+    fi
+done
+
+# If the last argument was umu-run or umu-run.py, add the path at the end
+if [[ "$PREV_MATCHED" == true ]]; then
+    NEW_ARGS+=("$INSERT_PATH")
+fi
+
+# Print the new command for debugging
+echo "Modified command: " "${NEW_ARGS[@]}"
+
+# Execute the modified command
+exec "${NEW_ARGS[@]}"
+
+
+```
 
 ## Current limitations
 
