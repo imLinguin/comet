@@ -111,6 +111,7 @@ pub async fn entry_point(
                     match data {
                         OverlayPeerMessage::VisibilityChange(visible) => {
                             if let Ok(res) = overlay_peer::encode_visibility_change(visible).await {
+                                log::debug!("Notifying about visibility change to game");
                                 if let Err(err) = context_clone.socket_mut().await.write_all(&res).await {
                                     error!("Failed to notify game of overlay visibility {err}");
                                 }
@@ -118,11 +119,12 @@ pub async fn entry_point(
                         },
                         OverlayPeerMessage::GameJoin(join_data) => {
                             if let Ok(res) = overlay_peer::encode_game_join(join_data).await {
+                                log::debug!("Sending game join invite to game");
                                 if let Err(err) = context_clone.socket_mut().await.write_all(&res).await {
-                                    error!("Failed to notify game of overlay visibility {err}");
+                                    error!("Failed to send game join event to the game {err}");
                                 }
                             }
-                        }
+                        },
                         _ => ()
                     }
                 }
@@ -130,7 +132,7 @@ pub async fn entry_point(
                 topic_message = topic_receiver_clone.recv() => {
                     match topic_message {
                         Ok(PusherEvent::Online) => {
-                                context_clone.set_online().await
+                            context_clone.set_online().await
                         },
                         Ok(PusherEvent::Offline) => {
                             context_clone.set_offline().await
@@ -244,7 +246,7 @@ pub async fn entry_point(
                 topic_message = topic_receiver.recv() => {
                     match topic_message {
                         Ok(PusherEvent::Online) => {
-                                context_clone.set_online().await
+                            context_clone.set_online().await
                         },
                         Ok(PusherEvent::Offline) => {
                             context_clone.set_offline().await

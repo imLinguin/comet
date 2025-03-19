@@ -103,6 +103,7 @@ async fn encode_message(
     header.set_sort(MessageSort::MESSAGE_SORT.value() as u32);
     header.set_type(msg_type);
     header.set_size(msg_data.len().try_into()?);
+    header.set_oseq(rand::random());
     let header_bytes = header.write_to_bytes()?;
     let header_len: u16 = header_bytes.len().try_into()?;
     let bytes = header_len.to_be_bytes();

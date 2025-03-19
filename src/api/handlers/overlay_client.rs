@@ -135,6 +135,7 @@ async fn overlay_data_request(
           "externalUsers": "https://external-users.gog.com",
           "gameplay": "https://gameplay.gog.com",
           "gog": "https://embed.gog.com",
+          "Gog": "https://embed.gog.com",
           "gogGalaxyStoreApi": "https://embed.gog.com",
           "notifications": "https://notifications.gog.com",
           "pusher": "https://notifications-pusher.gog.com",
@@ -147,6 +148,7 @@ async fn overlay_data_request(
           "remoteConfigurationHost": "https://remote-config.gog.com",
           "recommendations": "https://recommendations-api.gog.com",
           "overlayWeb": "https://overlay.gog.com",
+          "OverlayWeb": "https://overlay.gog.com",
         },
         "GalaxyClientId": "46899977096215655",
         "ChangelogBasePath": "",
@@ -238,7 +240,19 @@ async fn load_products(
                     .send()
                     .await
                 {
-                    if let Ok(data) = res.json::<serde_json::Value>().await {
+                    if let Ok(mut data) = res.json::<serde_json::Value>().await {
+                        if let Some(serde_json::Value::Object(ref mut images)) =
+                            data.get_mut("images")
+                        {
+                            for (_key, url_value) in images.iter_mut() {
+                                if let serde_json::Value::String(url) = url_value {
+                                    if url.starts_with("//") {
+                                        *url_value =
+                                            serde_json::Value::String(format!("https:{}", url));
+                                    }
+                                }
+                            }
+                        }
                         products.push(data);
                     }
                 }

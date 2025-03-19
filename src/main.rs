@@ -89,8 +89,10 @@ struct Args {
 }
 
 lazy_static! {
-    static ref LOCALE: String = sys_locale::get_locale().unwrap_or_else(|| String::from("en-US"));
     static ref CONFIG: config::Configuration = config::load_config().unwrap_or_default();
+    static ref LOCALE: String = sys_locale::get_locale()
+        .and_then(|x| if !x.contains("-") { None } else { Some(x) })
+        .unwrap_or_else(|| String::from("en-US"));
 }
 
 #[tokio::main]
