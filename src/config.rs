@@ -1,4 +1,3 @@
-use crate::paths;
 use serde::Deserialize;
 use std::fs;
 
@@ -84,6 +83,6 @@ fn default_volume() -> u32 {
 }
 
 pub fn load_config() -> Result<Configuration, Box<dyn std::error::Error + Send + Sync>> {
-    let data = fs::read_to_string(paths::CONFIG_FILE.as_path())?;
+    let data = fs::read_to_string(crate::paths::CONFIG_FILE.as_path())?;
     Ok(toml::from_str(&data)?)
 }

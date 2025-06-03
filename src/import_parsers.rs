@@ -1,4 +1,4 @@
-use crate::constants;
+use comet::constants;
 
 mod heroic;
 #[cfg(target_os = "linux")]

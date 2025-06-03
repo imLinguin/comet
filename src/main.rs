@@ -1,7 +1,7 @@
 use std::time::Duration;
 use std::{collections::HashMap, sync::Arc};
 
-use api::gog::overlay::OverlayPeerMessage;
+use comet::api::gog::overlay::OverlayPeerMessage;
 use clap::{Parser, Subcommand};
 use env_logger::{Builder, Env, Target};
 use futures_util::future::join_all;
@@ -9,21 +9,16 @@ use log::{error, info, warn};
 use reqwest::Client;
 use tokio::net::TcpListener;
 use tokio::sync::Mutex;
-#[macro_use]
-extern crate lazy_static;
-mod api;
-mod config;
-mod constants;
-mod db;
 mod import_parsers;
-mod paths;
-mod proto;
 
-use crate::api::notification_pusher::PusherEvent;
-use crate::api::structs::{Token, UserInfo};
-use api::notification_pusher::NotificationPusherClient;
+use comet::api;
+use comet::constants;
+use comet::paths;
+use comet::db;
 
-static CERT: &[u8] = include_bytes!("../external/rootCA.pem");
+use comet::api::notification_pusher::PusherEvent;
+use comet::api::structs::{Token, UserInfo};
+use comet::api::notification_pusher::NotificationPusherClient;
 
 #[derive(Subcommand, Debug)]
 enum SubCommand {
@@ -88,12 +83,6 @@ struct Args {
     subcommand: Option<SubCommand>,
 }
 
-lazy_static! {
-    static ref CONFIG: config::Configuration = config::load_config().unwrap_or_default();
-    static ref LOCALE: String = sys_locale::get_locale()
-        .and_then(|x| if !x.contains("-") { None } else { Some(x) })
-        .unwrap_or_else(|| String::from("en-US"));
-}
 
 #[tokio::main]
 async fn main() {
@@ -104,13 +93,13 @@ async fn main() {
         .filter_module("h2::codec", log::LevelFilter::Off)
         .init();
 
-    log::debug!("Configuration file {:?}", *CONFIG);
-    log::info!("Preferred language: {}", LOCALE.as_str());
+    log::debug!("Configuration file {:?}", *comet::CONFIG);
+    log::info!("Preferred language: {}", comet::LOCALE.as_str());
 
     let (access_token, refresh_token, galaxy_user_id) =
         import_parsers::handle_credentials_import(&args);
 
-    let certificate = reqwest::tls::Certificate::from_pem(CERT).unwrap();
+    let certificate = reqwest::tls::Certificate::from_pem(comet::CERT).unwrap();
     let reqwest_client = Client::builder()
         .user_agent(format!("Comet/{}", env!("CARGO_PKG_VERSION")))
         .add_root_certificate(certificate)
