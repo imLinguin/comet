@@ -16,4 +16,3 @@ lazy_static! {
         .and_then(|x| if !x.contains("-") { None } else { Some(x) })
         .unwrap_or_else(|| String::from("en-US"));
 }
-
