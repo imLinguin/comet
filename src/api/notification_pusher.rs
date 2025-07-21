@@ -141,7 +141,7 @@ impl NotificationPusherClient {
                         }
                         msg.unwrap()
                     }
-                    _ = time::sleep(time::Duration::from_secs(60)) => {
+                    _ = time::sleep(time::Duration::from_secs(30)) => {
                         if pending_ping {
                             // Send offline status to contexts
                             if let Err(err) = self.topic_sender.send(PusherEvent::Offline) {
