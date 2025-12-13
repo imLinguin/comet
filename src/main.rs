@@ -19,6 +19,7 @@ use comet::paths;
 use comet::api::notification_pusher::NotificationPusherClient;
 use comet::api::notification_pusher::PusherEvent;
 use comet::api::structs::{Token, UserInfo};
+use tokio::task::JoinHandle;
 
 #[derive(Subcommand, Debug)]
 enum SubCommand {
@@ -86,7 +87,11 @@ struct Args {
 #[tokio::main]
 async fn main() {
     let args = Args::parse();
-    let env = Env::new().filter_or("COMET_LOG", "info");
+    #[cfg(debug_assertions)]
+    let log_level = "debug";
+    #[cfg(not(debug_assertions))]
+    let log_level = "info";
+    let env = Env::new().filter_or("COMET_LOG", log_level);
     Builder::from_env(env)
         .target(Target::Stderr)
         .filter_module("h2::codec", log::LevelFilter::Off)
@@ -112,9 +117,10 @@ async fn main() {
 
     let token_store: constants::TokenStorage = Arc::new(Mutex::new(HashMap::new()));
     let galaxy_token = Token::new(access_token.clone(), refresh_token.clone());
-    let mut store_lock = token_store.lock().await;
-    store_lock.insert(String::from(constants::GALAXY_CLIENT_ID), galaxy_token);
-    drop(store_lock);
+    {
+        let mut store_lock = token_store.lock().await;
+        store_lock.insert(String::from(constants::GALAXY_CLIENT_ID), galaxy_token);
+    }
 
     let client_clone = reqwest_client.clone();
     tokio::spawn(async move {
@@ -170,12 +176,13 @@ async fn main() {
                 if !db::gameplay::has_achievements(&database).await
                     || !db::gameplay::has_statistics(&database).await
                 {
-                    let mut connection = database.acquire().await.unwrap();
-                    sqlx::query(db::gameplay::SETUP_QUERY)
-                        .execute(&mut *connection)
-                        .await
-                        .expect("Failed to setup the database");
-                    drop(connection);
+                    {
+                        let mut connection = database.acquire().await.unwrap();
+                        sqlx::query(db::gameplay::SETUP_QUERY)
+                            .execute(&mut *connection)
+                            .await
+                            .expect("Failed to setup the database");
+                    }
 
                     let new_token = api::gog::users::get_token_for(
                         &client_id,
@@ -187,9 +194,10 @@ async fn main() {
                     .await
                     .expect("Failed to obtain credentials");
 
-                    let mut tokens = token_store.lock().await;
-                    tokens.insert(client_id.clone(), new_token);
-                    drop(tokens);
+                    {
+                        let mut tokens = token_store.lock().await;
+                        tokens.insert(client_id.clone(), new_token);
+                    }
 
                     let new_achievements = api::gog::achievements::fetch_achievements(
                         &token_store,
@@ -323,6 +331,7 @@ async fn main() {
                 }
             }
             _ = tokio::time::sleep(Duration::from_secs(comet_idle_wait)) => {
+                handlers.retain(|handler: &JoinHandle<()>| !handler.is_finished());
                 if active_clients == 0 && ever_connected {
                     socket_shutdown.cancel();
                     break

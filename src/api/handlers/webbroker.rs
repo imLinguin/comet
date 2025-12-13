@@ -25,9 +25,7 @@ pub async fn entry_point(
             "Received unsupported webbroker message type {}",
             message_type
         );
-        Err(MessageHandlingError::new(
-            MessageHandlingErrorKind::NotImplemented,
-        ))
+        Err(MessageHandlingError::not_implemented())
     }
 }
 
@@ -39,8 +37,7 @@ async fn subscribe_topic_request(
     // This is the stub that just responds with success
     let request_data = SubscribeTopicRequest::parse_from_bytes(&payload.payload);
 
-    let proto = request_data
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+    let proto = request_data.map_err(MessageHandlingError::proto)?;
     let topic = String::from(proto.topic());
 
     context.subscribe_topic(topic.clone()).await;

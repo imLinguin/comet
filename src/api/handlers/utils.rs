@@ -98,7 +98,7 @@ where
 
     let payload = payload_data
         .write_to_bytes()
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+        .map_err(MessageHandlingError::proto)?;
 
     header.set_size(payload.len().try_into().unwrap());
 
@@ -160,11 +160,13 @@ where
         }
         Err(err) => {
             warn!("Leaderboards request error: {}", err);
-            if err.is_status() && err.status().unwrap() == reqwest::StatusCode::NOT_FOUND {
-                header
-                    .mut_special_fields()
-                    .mut_unknown_fields()
-                    .add_varint(101, 404);
+            if let MessageHandlingErrorKind::Network(err) = err.kind {
+                if err.is_status() && err.status().unwrap() == reqwest::StatusCode::NOT_FOUND {
+                    header
+                        .mut_special_fields()
+                        .mut_unknown_fields()
+                        .add_varint(101, 404);
+                }
             }
             Vec::new()
         }

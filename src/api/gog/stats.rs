@@ -1,8 +1,8 @@
 use crate::api::handlers::context::HandlerContext;
-use crate::api::handlers::error::{MessageHandlingError, MessageHandlingErrorKind};
+use crate::api::handlers::error::MessageHandlingError;
 use crate::constants::TokenStorage;
 use derive_getters::Getters;
-use reqwest::{Client, Error};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug)]
@@ -72,14 +72,12 @@ pub async fn fetch_stats(
     user_id: &str,
     reqwest_client: &Client,
 ) -> Result<Vec<Stat>, MessageHandlingError> {
-    let lock = token_store.lock().await;
-    let token = lock
-        .get(client_id)
-        .ok_or(MessageHandlingError::new(
-            MessageHandlingErrorKind::Unauthorized,
-        ))?
-        .clone();
-    drop(lock);
+    let token = {
+        let lock = token_store.lock().await;
+        lock.get(client_id)
+            .ok_or(MessageHandlingError::unauthorized())?
+            .clone()
+    };
 
     let url = format!(
         "https://gameplay.gog.com/clients/{}/users/{}/stats",
@@ -90,12 +88,12 @@ pub async fn fetch_stats(
         .bearer_auth(token.access_token)
         .send()
         .await
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+        .map_err(MessageHandlingError::network)?;
 
     let stats_data = response
         .json::<StatsResponse>()
         .await
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+        .map_err(MessageHandlingError::network)?;
 
     Ok(stats_data.items)
 }
@@ -123,11 +121,17 @@ pub async fn update_stat(
     reqwest_client: &Client,
     user_id: &str,
     stat: &Stat,
-) -> Result<(), Error> {
-    let lock = context.token_store().lock().await;
-    let client_id = context.client_id().await.unwrap();
-    let token = lock.get(&client_id).unwrap().clone();
-    drop(lock);
+) -> Result<(), MessageHandlingError> {
+    let client_id = context
+        .client_id()
+        .await
+        .ok_or(MessageHandlingError::unauthorized())?;
+    let token = {
+        let lock = context.token_store().lock().await;
+        lock.get(&client_id)
+            .ok_or(MessageHandlingError::unauthorized())?
+            .clone()
+    };
 
     let url = format!(
         "https://gameplay.gog.com/clients/{}/users/{}/stats/{}",
@@ -147,9 +151,13 @@ pub async fn update_stat(
         .json(&payload)
         .bearer_auth(token.access_token)
         .send()
-        .await?;
+        .await
+        .map_err(MessageHandlingError::network)?;
 
-    response.error_for_status()?;
+    response
+        .error_for_status()
+        .map_err(MessageHandlingError::network)?;
+
     Ok(())
 }
 
@@ -157,11 +165,17 @@ pub async fn delete_stats(
     context: &HandlerContext,
     reqwest_client: &Client,
     user_id: &str,
-) -> Result<(), Error> {
-    let lock = context.token_store().lock().await;
-    let client_id = context.client_id().await.unwrap();
-    let token = lock.get(&client_id).unwrap().clone();
-    drop(lock);
+) -> Result<(), MessageHandlingError> {
+    let client_id = context
+        .client_id()
+        .await
+        .ok_or(MessageHandlingError::unauthorized())?;
+    let token = {
+        let lock = context.token_store().lock().await;
+        lock.get(&client_id)
+            .ok_or(MessageHandlingError::unauthorized())?
+            .clone()
+    };
 
     let url = format!(
         "https://gameplay.gog.com/clients/{}/users/{}/stats",
@@ -172,8 +186,12 @@ pub async fn delete_stats(
         .delete(url)
         .bearer_auth(token.access_token)
         .send()
-        .await?;
+        .await
+        .map_err(MessageHandlingError::network)?;
 
-    response.error_for_status()?;
+    response
+        .error_for_status()
+        .map_err(MessageHandlingError::network)?;
+
     Ok(())
 }

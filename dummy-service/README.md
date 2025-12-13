@@ -37,4 +37,4 @@ For cross compilation on Linux/Mac make sure `mingw` is installed and add a `--c
 
 ```shell
 meson compile -C builddir
-``
+```

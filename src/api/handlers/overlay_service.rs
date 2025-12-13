@@ -1,4 +1,4 @@
-use super::{context::HandlerContext, MessageHandlingError, MessageHandlingErrorKind};
+use super::{context::HandlerContext, MessageHandlingError};
 use crate::api::gog::achievements::Achievement;
 use crate::constants;
 use crate::proto::common_utils::ProtoPayload;
@@ -19,15 +19,13 @@ pub async fn entry_point(
         access_token(payload, context).await
     } else if message_type == MessageType::OVERLAY_INITIALIZATION_NOTIFICATION.value() {
         init_notification(payload).await?;
-        Err(MessageHandlingError::new(MessageHandlingErrorKind::Ignored))
+        Err(MessageHandlingError::ignored())
     } else {
         warn!(
             "Received unsupported ov_service message type {}",
             message_type
         );
-        Err(MessageHandlingError::new(
-            MessageHandlingErrorKind::NotImplemented,
-        ))
+        Err(MessageHandlingError::not_implemented())
     }
 }
 
@@ -85,9 +83,7 @@ async fn access_token(
     if let Some(token) = galaxy_access_token {
         res.set_access_token(token.access_token.clone());
     }
-    let payload = res
-        .write_to_bytes()
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+    let payload = res.write_to_bytes().map_err(MessageHandlingError::proto)?;
     let mut header = gog_protocols_pb::Header::new();
     header.set_sort(MessageSort::MESSAGE_SORT.value().try_into().unwrap());
     header.set_type(
@@ -103,7 +99,7 @@ async fn access_token(
 
 async fn init_notification(payload: &ProtoPayload) -> Result<(), MessageHandlingError> {
     let message = OverlayInitializationNotification::parse_from_bytes(&payload.payload)
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+        .map_err(MessageHandlingError::proto)?;
 
     info!(
         "Overlay notified if it successfully initialized - {}",

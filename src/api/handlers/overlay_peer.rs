@@ -4,7 +4,7 @@ use crate::{api::gog::overlay::OverlayPeerMessage, proto::galaxy_protocols_overl
 use log::warn;
 use protobuf::{Enum, Message};
 
-use super::{context::HandlerContext, MessageHandlingError, MessageHandlingErrorKind};
+use super::{context::HandlerContext, MessageHandlingError};
 
 pub async fn entry_point(
     payload: &ProtoPayload,
@@ -26,11 +26,9 @@ pub async fn entry_point(
         let _ = overlay_initialized(payload, context).await;
     } else {
         warn!("Received unsupported peer message type {}", message_type);
-        return Err(MessageHandlingError::new(
-            MessageHandlingErrorKind::NotImplemented,
-        ));
+        return Err(MessageHandlingError::not_implemented());
     }
-    Err(MessageHandlingError::new(MessageHandlingErrorKind::Ignored))
+    Err(MessageHandlingError::ignored())
 }
 
 async fn show_web_page(

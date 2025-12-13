@@ -33,9 +33,7 @@ pub async fn entry_point(
             "Received unsupported ov_client message type {}",
             message_type
         );
-        Err(MessageHandlingError::new(
-            MessageHandlingErrorKind::NotImplemented,
-        ))
+        Err(MessageHandlingError::not_implemented())
     }
 }
 
@@ -190,9 +188,9 @@ async fn client_request(
     reqwest_client: &reqwest::Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request = OverlayToClientRequest::parse_from_bytes(&payload.payload)
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
-    let parsed_request: serde_json::Value = serde_json::from_str(request.data())
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Json(err)))?;
+        .map_err(MessageHandlingError::proto)?;
+    let parsed_request: serde_json::Value =
+        serde_json::from_str(request.data()).map_err(MessageHandlingError::json)?;
 
     let command = parsed_request.get("Command");
     let json_data: serde_json::Value = match command {

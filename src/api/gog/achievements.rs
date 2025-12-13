@@ -1,8 +1,8 @@
 use crate::api::handlers::context::HandlerContext;
-use crate::api::handlers::error::{MessageHandlingError, MessageHandlingErrorKind};
+use crate::api::handlers::error::MessageHandlingError;
 use crate::constants::TokenStorage;
 use derive_getters::Getters;
-use reqwest::{Client, Error};
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Debug, Clone, Getters)]
@@ -66,14 +66,12 @@ pub async fn fetch_achievements(
     user_id: &str,
     reqwest_client: &Client,
 ) -> Result<(Vec<Achievement>, String), MessageHandlingError> {
-    let lock = token_store.lock().await;
-    let token = lock
-        .get(client_id)
-        .ok_or(MessageHandlingError::new(
-            MessageHandlingErrorKind::Unauthorized,
-        ))?
-        .clone();
-    drop(lock);
+    let token = {
+        let lock = token_store.lock().await;
+        lock.get(client_id)
+            .ok_or(MessageHandlingError::unauthorized())?
+            .clone()
+    };
 
     let url = format!(
         "https://gameplay.gog.com/clients/{}/users/{}/achievements",
@@ -85,12 +83,12 @@ pub async fn fetch_achievements(
         .header("X-Gog-Lc", crate::LOCALE.as_str())
         .send()
         .await
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+        .map_err(MessageHandlingError::network)?;
 
     let achievements_data = response
         .json::<AchievementsResponse>()
         .await
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+        .map_err(MessageHandlingError::network)?;
 
     Ok((achievements_data.items, achievements_data.achievements_mode))
 }
@@ -112,11 +110,17 @@ pub async fn set_achievement(
     user_id: &str,
     achievement_id: &str,
     date_unlocked: Option<String>,
-) -> Result<(), Error> {
-    let lock = context.token_store().lock().await;
-    let client_id = context.client_id().await.unwrap();
-    let token = lock.get(&client_id).unwrap().clone();
-    drop(lock);
+) -> Result<(), MessageHandlingError> {
+    let client_id = context
+        .client_id()
+        .await
+        .ok_or(MessageHandlingError::unauthorized())?;
+    let token = {
+        let lock = context.token_store().lock().await;
+        lock.get(&client_id)
+            .ok_or(MessageHandlingError::unauthorized())?
+            .clone()
+    };
     let url = format!(
         "https://gameplay.gog.com/clients/{}/users/{}/achievements/{}",
         &client_id, user_id, achievement_id
@@ -128,8 +132,13 @@ pub async fn set_achievement(
         .json(&body)
         .bearer_auth(token.access_token)
         .send()
-        .await?;
-    response.error_for_status()?;
+        .await
+        .map_err(MessageHandlingError::network)?;
+
+    response
+        .error_for_status()
+        .map_err(MessageHandlingError::network)?;
+
     Ok(())
 }
 
@@ -137,11 +146,17 @@ pub async fn delete_achievements(
     context: &HandlerContext,
     reqwest_client: &Client,
     user_id: &str,
-) -> Result<(), Error> {
-    let lock = context.token_store().lock().await;
-    let client_id = context.client_id().await.unwrap();
-    let token = lock.get(&client_id).unwrap().clone();
-    drop(lock);
+) -> Result<(), MessageHandlingError> {
+    let client_id = context
+        .client_id()
+        .await
+        .ok_or(MessageHandlingError::unauthorized())?;
+    let token = {
+        let lock = context.token_store().lock().await;
+        lock.get(&client_id)
+            .ok_or(MessageHandlingError::unauthorized())?
+            .clone()
+    };
     let url = format!(
         "https://gameplay.gog.com/clients/{}/users/{}/achievements",
         &client_id, user_id
@@ -151,8 +166,12 @@ pub async fn delete_achievements(
         .delete(url)
         .bearer_auth(token.access_token)
         .send()
-        .await?;
-    response.error_for_status()?;
+        .await
+        .map_err(MessageHandlingError::network)?;
+
+    response
+        .error_for_status()
+        .map_err(MessageHandlingError::network)?;
 
     Ok(())
 }

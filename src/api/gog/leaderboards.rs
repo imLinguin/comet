@@ -1,4 +1,5 @@
 use crate::api::handlers::context::HandlerContext;
+use crate::api::handlers::error::{MessageHandlingError, MessageHandlingErrorKind};
 use derive_getters::Getters;
 use log::debug;
 use reqwest::{Client, Url};
@@ -42,16 +43,23 @@ pub async fn get_leaderboards<I, K, V>(
     context: &HandlerContext,
     reqwest_client: &Client,
     params: I,
-) -> Result<Vec<LeaderboardDefinition>, reqwest::Error>
+) -> Result<Vec<LeaderboardDefinition>, MessageHandlingError>
 where
     I: IntoIterator<Item = (K, V)>,
     K: AsRef<str>,
     V: AsRef<str>,
 {
-    let lock = context.token_store().lock().await;
-    let client_id = context.client_id().await.unwrap();
-    let token = lock.get(&client_id).unwrap().clone();
-    drop(lock);
+    let client_id = context.client_id().await.ok_or(MessageHandlingError::new(
+        MessageHandlingErrorKind::Unauthorized,
+    ))?;
+    let token = {
+        let lock = context.token_store().lock().await;
+        lock.get(&client_id)
+            .ok_or(MessageHandlingError::new(
+                MessageHandlingErrorKind::Unauthorized,
+            ))?
+            .clone()
+    };
     let url = format!(
         "https://gameplay.gog.com/clients/{}/leaderboards",
         &client_id
@@ -64,9 +72,13 @@ where
         .bearer_auth(token.access_token)
         .header("X-Gog-Lc", crate::LOCALE.as_str())
         .send()
-        .await?;
+        .await
+        .map_err(MessageHandlingError::network)?;
 
-    let response_data: LeaderboardsResponse = response.json().await?;
+    let response_data: LeaderboardsResponse = response
+        .json()
+        .await
+        .map_err(MessageHandlingError::network)?;
 
     debug!("Got {} leaderboards", response_data.items.len());
 
@@ -92,16 +104,22 @@ pub async fn get_leaderboards_entries<I, K, V>(
     reqwest_client: &Client,
     leaderboard_id: u64,
     params: I,
-) -> Result<LeaderboardEntriesResponse, reqwest::Error>
+) -> Result<LeaderboardEntriesResponse, MessageHandlingError>
 where
     I: IntoIterator<Item = (K, V)>,
     K: AsRef<str>,
     V: AsRef<str>,
 {
-    let lock = context.token_store().lock().await;
-    let client_id = context.client_id().await.unwrap();
-    let token = lock.get(&client_id).unwrap().clone();
-    drop(lock);
+    let client_id = context
+        .client_id()
+        .await
+        .ok_or(MessageHandlingError::unauthorized())?;
+    let token = {
+        let lock = context.token_store().lock().await;
+        lock.get(&client_id)
+            .ok_or(MessageHandlingError::unauthorized())?
+            .clone()
+    };
 
     let url = format!(
         "https://gameplay.gog.com/clients/{}/leaderboards/{}/entries",
@@ -115,11 +133,14 @@ where
         .bearer_auth(token.access_token)
         .header("X-Gog-Lc", crate::LOCALE.as_str())
         .send()
-        .await?;
+        .await
+        .map_err(MessageHandlingError::network)?;
 
-    let response = response.error_for_status()?;
+    let response = response
+        .error_for_status()
+        .map_err(MessageHandlingError::network)?;
 
-    response.json().await
+    response.json().await.map_err(MessageHandlingError::network)
 }
 
 #[derive(Serialize)]
@@ -145,11 +166,17 @@ pub async fn post_leaderboard_score(
     score: i32,
     force_update: bool,
     details: Option<String>,
-) -> Result<LeaderboardScoreUpdateResponse, reqwest::Error> {
-    let lock = context.token_store().lock().await;
-    let client_id = context.client_id().await.unwrap();
-    let token = lock.get(&client_id).unwrap().clone();
-    drop(lock);
+) -> Result<LeaderboardScoreUpdateResponse, MessageHandlingError> {
+    let client_id = context
+        .client_id()
+        .await
+        .ok_or(MessageHandlingError::unauthorized())?;
+    let token = {
+        let lock = context.token_store().lock().await;
+        lock.get(&client_id)
+            .ok_or(MessageHandlingError::unauthorized())?
+            .clone()
+    };
 
     let url = format!(
         "https://gameplay.gog.com/clients/{}/users/{}/leaderboards/{}",
@@ -167,10 +194,16 @@ pub async fn post_leaderboard_score(
         .json(&payload)
         .bearer_auth(token.access_token)
         .send()
-        .await?;
+        .await
+        .map_err(MessageHandlingError::network)?;
 
-    let response = response.error_for_status()?;
-    let data = response.json().await?;
+    let response = response
+        .error_for_status()
+        .map_err(MessageHandlingError::network)?;
+    let data = response
+        .json()
+        .await
+        .map_err(MessageHandlingError::network)?;
     Ok(data)
 }
 
@@ -189,11 +222,17 @@ pub async fn create_leaderboard(
     name: String,
     sort_method: String,
     display_type: String,
-) -> Result<String, reqwest::Error> {
-    let lock = context.token_store().lock().await;
-    let client_id = context.client_id().await.unwrap();
-    let token = lock.get(&client_id).unwrap().clone();
-    drop(lock);
+) -> Result<String, MessageHandlingError> {
+    let client_id = context
+        .client_id()
+        .await
+        .ok_or(MessageHandlingError::unauthorized())?;
+    let token = {
+        let lock = context.token_store().lock().await;
+        lock.get(&client_id)
+            .ok_or(MessageHandlingError::unauthorized())?
+            .clone()
+    };
 
     let payload = CreateLeaderboardPayload {
         key,
@@ -212,10 +251,16 @@ pub async fn create_leaderboard(
         .json(&payload)
         .bearer_auth(token.access_token)
         .send()
-        .await?;
-    let response = response.error_for_status()?;
+        .await
+        .map_err(MessageHandlingError::network)?;
+    let response = response
+        .error_for_status()
+        .map_err(MessageHandlingError::network)?;
 
-    let definition: LeaderboardDefinition = response.json().await?;
+    let definition: LeaderboardDefinition = response
+        .json()
+        .await
+        .map_err(MessageHandlingError::network)?;
 
     Ok(definition.id)
 }

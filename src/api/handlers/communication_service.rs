@@ -76,9 +76,7 @@ pub async fn entry_point(
             "Unhandled communication service message type {}",
             message_type
         );
-        Err(MessageHandlingError::new(
-            MessageHandlingErrorKind::NotImplemented,
-        ))
+        Err(MessageHandlingError::not_implemented())
     }
 }
 
@@ -89,8 +87,7 @@ async fn library_info_request(
     _reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request_data = LibraryInfoRequest::parse_from_bytes(&payload.payload);
-    let request_data = request_data
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+    let request_data = request_data.map_err(MessageHandlingError::proto)?;
 
     let compiler_type = request_data.compiler_type();
     let compiler_version = request_data.compiler_version();
@@ -131,8 +128,7 @@ async fn auth_info_request(
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request_data = AuthInfoRequest::parse_from_bytes(&payload.payload);
-    let request_data = request_data
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+    let request_data = request_data.map_err(MessageHandlingError::proto)?;
 
     let client_id = request_data.client_id();
     let client_secret = request_data.client_secret();
@@ -145,13 +141,15 @@ async fn auth_info_request(
     }
 
     info!("Game PID: {}", pid);
+    let refresh_token = {
+        let token_storage = context.token_store().lock().await;
 
-    let token_storage = context.token_store().lock().await;
-    let galaxy_token = token_storage
-        .get(constants::GALAXY_CLIENT_ID)
-        .expect("Failed to get Galaxy token from store");
-    let refresh_token = galaxy_token.refresh_token.clone();
-    drop(token_storage);
+        token_storage
+            .get(constants::GALAXY_CLIENT_ID)
+            .expect("Failed to get Galaxy token from store")
+            .refresh_token
+            .clone()
+    };
 
     // Obtain the token (at least attempt to)
     let new_token = gog::users::get_token_for(
@@ -207,7 +205,6 @@ async fn auth_info_request(
         Ok(token) => {
             let mut token_storage = context.token_store().lock().await;
             token_storage.insert(String::from(client_id), token.clone());
-            drop(token_storage);
             content.set_refresh_token(token.refresh_token);
             context.set_online().await;
         }
@@ -216,9 +213,7 @@ async fn auth_info_request(
             if let Some(status) = err.status() {
                 // user doesn't own the game
                 if StatusCode::FORBIDDEN == status {
-                    return Err(MessageHandlingError::new(
-                        MessageHandlingErrorKind::Unauthorized,
-                    ));
+                    return Err(MessageHandlingError::unauthorized());
                 }
             }
             // Check if we can continue offline
@@ -378,8 +373,7 @@ async fn update_user_stat(
     _reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request_data = UpdateUserStatRequest::parse_from_bytes(&proto_payload.payload);
-    let request_data = request_data
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+    let request_data = request_data.map_err(MessageHandlingError::proto)?;
 
     let stat_id: u64 = request_data.stat_id();
     let stat_id: i64 = stat_id.try_into().unwrap();
@@ -389,13 +383,13 @@ async fn update_user_stat(
             let value = request_data.float_value();
             set_stat_float(context, stat_id, value)
                 .await
-                .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+                .map_err(MessageHandlingError::db)?;
         }
         VALUE_TYPE_INT => {
             let value = request_data.int_value();
             set_stat_int(context, stat_id, value)
                 .await
-                .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+                .map_err(MessageHandlingError::db)?;
         }
         VALUE_TYPE_UNDEFINED => {
             warn!("Undefined value type, ignoring");
@@ -424,13 +418,11 @@ async fn delete_user_stats(
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
-    gog::stats::delete_stats(context, reqwest_client, &user_info.galaxy_user_id)
-        .await
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+    gog::stats::delete_stats(context, reqwest_client, &user_info.galaxy_user_id).await?;
 
     db::gameplay::reset_stats(context)
         .await
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+        .map_err(MessageHandlingError::db)?;
 
     let mut header = Header::new();
     header.set_type(
@@ -536,8 +528,7 @@ async fn unlock_user_achievement(
     _reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request_data = UnlockUserAchievementRequest::parse_from_bytes(&proto_payload.payload);
-    let request_data = request_data
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+    let request_data = request_data.map_err(MessageHandlingError::proto)?;
 
     let ach_id: i64 = request_data.achievement_id().try_into().unwrap();
     let timestamp = request_data.time();
@@ -588,8 +579,7 @@ async fn clear_user_achievement(
     _reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request_data = ClearUserAchievementRequest::parse_from_bytes(&proto_payload.payload);
-    let request_data = request_data
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+    let request_data = request_data.map_err(MessageHandlingError::proto)?;
 
     let ach_id: i64 = request_data.achievement_id().try_into().unwrap();
 
@@ -619,12 +609,11 @@ async fn delete_user_achievements(
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     gog::achievements::delete_achievements(context, reqwest_client, &user_info.galaxy_user_id)
-        .await
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+        .await?;
 
     db::gameplay::reset_achievements(context)
         .await
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+        .map_err(MessageHandlingError::db)?;
 
     let mut header = Header::new();
     header.set_type(
@@ -656,7 +645,7 @@ async fn get_leaderboards_by_key(
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request = GetLeaderboardsByKeyRequest::parse_from_bytes(&proto_payload.payload)
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+        .map_err(MessageHandlingError::proto)?;
 
     let keys = request.key.join(",");
     super::utils::handle_leaderboards_query(context, reqwest_client, [("keys", keys)]).await
@@ -669,7 +658,7 @@ async fn get_leaderboard_entries_global(
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request = GetLeaderboardEntriesGlobalRequest::parse_from_bytes(&proto_payload.payload)
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+        .map_err(MessageHandlingError::proto)?;
 
     let params = [
         ("range_start", request.range_start().to_string()),
@@ -691,7 +680,7 @@ async fn get_leaderboard_entries_around_user(
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request = GetLeaderboardEntriesAroundUserRequest::parse_from_bytes(&proto_payload.payload)
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+        .map_err(MessageHandlingError::proto)?;
 
     let user_id = IDType::parse(request.user_id());
 
@@ -717,7 +706,7 @@ async fn get_leaderboard_entries_for_users(
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request = GetLeaderboardEntriesForUsersRequest::parse_from_bytes(&proto_payload.payload)
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+        .map_err(MessageHandlingError::proto)?;
 
     let user_ids: String = request
         .user_ids
@@ -744,7 +733,7 @@ async fn set_leaderboard_score(
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request = SetLeaderboardScoreRequest::parse_from_bytes(&proto_payload.payload)
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+        .map_err(MessageHandlingError::proto)?;
 
     let id = request.leaderboard_id().to_string();
     info!(
@@ -755,7 +744,7 @@ async fn set_leaderboard_score(
     let current_score = match db::gameplay::get_leaderboard_score(context, &id).await {
         Ok((score, _old_rank, _entry_total_count, _force, _details)) => score,
         Err(sqlx::Error::RowNotFound) => 0,
-        Err(err) => return Err(MessageHandlingError::new(MessageHandlingErrorKind::DB(err))),
+        Err(err) => return Err(MessageHandlingError::db(err)),
     };
     let mut header = Header::new();
     header.set_type(
@@ -804,7 +793,7 @@ async fn set_leaderboard_score(
                 &details,
             )
             .await
-            .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+            .map_err(MessageHandlingError::db)?;
             db::gameplay::set_leaderboard_rank(
                 context,
                 &id,
@@ -812,7 +801,7 @@ async fn set_leaderboard_score(
                 data.leaderboard_entry_total_count,
             )
             .await
-            .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+            .map_err(MessageHandlingError::db)?;
 
             let mut proto_data = SetLeaderboardScoreResponse::new();
             proto_data.set_score(request.score());
@@ -821,7 +810,7 @@ async fn set_leaderboard_score(
             proto_data.set_leaderboard_entry_total_count(data.leaderboard_entry_total_count);
             let payload = proto_data
                 .write_to_bytes()
-                .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+                .map_err(MessageHandlingError::proto)?;
             header.set_size(payload.len().try_into().unwrap());
             return Ok(ProtoPayload { header, payload });
         }
@@ -836,12 +825,14 @@ async fn set_leaderboard_score(
                 &details,
             )
             .await
-            .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
-            if err.status().is_none() || err.status().is_some_and(|s| s.as_u16() != 409) {
-                db::gameplay::set_leaderboad_changed(context, &id, true)
-                    .await
-                    .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
-                context.set_updated_leaderboards(true).await;
+            .map_err(MessageHandlingError::db)?;
+            if let MessageHandlingErrorKind::Network(err) = err.kind {
+                if err.status().is_none() || err.status().is_some_and(|s| s.as_u16() != 409) {
+                    db::gameplay::set_leaderboad_changed(context, &id, true)
+                        .await
+                        .map_err(MessageHandlingError::db)?;
+                    context.set_updated_leaderboards(true).await;
+                }
             }
         }
     }
@@ -849,7 +840,7 @@ async fn set_leaderboard_score(
     let (_score, old_rank, entry_total_count, _force, _details) =
         db::gameplay::get_leaderboard_score(context, &id)
             .await
-            .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::DB(err)))?;
+            .map_err(MessageHandlingError::db)?;
     let new_rank = if old_rank != 0 { old_rank } else { 1 };
     let entry_total_count = if old_rank != 0 {
         entry_total_count
@@ -864,7 +855,7 @@ async fn set_leaderboard_score(
     proto_data.set_leaderboard_entry_total_count(entry_total_count);
     let payload = proto_data
         .write_to_bytes()
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+        .map_err(MessageHandlingError::proto)?;
     header.set_size(payload.len().try_into().unwrap());
     Ok(ProtoPayload { header, payload })
 }
@@ -876,7 +867,7 @@ async fn create_leaderboard(
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let mut request = CreateLeaderboardRequest::parse_from_bytes(&proto_payload.payload)
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+        .map_err(MessageHandlingError::proto)?;
 
     let key = request.take_key();
     let name = request.take_name();
@@ -904,8 +895,7 @@ async fn create_leaderboard(
         sort_method,
         display_type,
     )
-    .await
-    .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Network(err)))?;
+    .await?;
 
     let mut response = CreateLeaderboardResponse::new();
     response.set_leaderboard_id(leaderboard_id.parse().unwrap());
@@ -920,7 +910,7 @@ async fn create_leaderboard(
 
     let payload = response
         .write_to_bytes()
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+        .map_err(MessageHandlingError::proto)?;
     header.set_size(payload.len().try_into().unwrap());
 
     Ok(ProtoPayload { header, payload })
@@ -933,7 +923,7 @@ async fn start_game_session(
     _reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request = StartGameSessionRequest::parse_from_bytes(&proto_payload.payload)
-        .map_err(|err| MessageHandlingError::new(MessageHandlingErrorKind::Proto(err)))?;
+        .map_err(MessageHandlingError::proto)?;
 
     info!("Requested session start for {}", request.game_pid());
 

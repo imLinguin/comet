@@ -235,7 +235,7 @@ pub async fn entry_point(
                         OverlayPeerMessage::OpenWebPage(page) => overlay_peer::encode_open_web_page(page).await,
                         OverlayPeerMessage::InvitationDialog(con) => overlay_peer::encode_game_invite(con).await,
                         OverlayPeerMessage::DisablePopups(data) => overlay_peer::encode_overlay_initialized(data).await,
-                        _ => Err(MessageHandlingError::new(MessageHandlingErrorKind::Ignored).into())
+                        _ => Err(MessageHandlingError::ignored().into())
                     };
                     if let Ok(data) = data {
                         if let Err(err) = current_socket.write_all(&data).await {
@@ -303,9 +303,7 @@ pub async fn handle_message(
         7 => overlay_client::entry_point(&payload, context, user_info, reqwest_client).await,
         _ => {
             warn!("Unhandled sort {}", sort);
-            Err(MessageHandlingError::new(
-                MessageHandlingErrorKind::NotImplemented,
-            ))
+            Err(MessageHandlingError::not_implemented())
         }
     }?;
     result.header.set_sort(sort);
@@ -515,8 +513,9 @@ async fn sync_routine(context: &HandlerContext, reqwest_client: &Client, user_in
                             .expect("Failed to update leaderboard state");
                         }
                         Err(err) => {
-                            if let Some(status) = err.status() {
-                                if status.as_u16() == 409 {
+                            warn!("More details {}", err);
+                            if let MessageHandlingErrorKind::Network(networ_error) = err.kind {
+                                if networ_error.status().is_some_and(|s| s == 409) {
                                     warn!("Leaderboard conflict for {}", id);
                                     let entries = gog::leaderboards::get_leaderboards_entries(
                                         context,
@@ -550,7 +549,6 @@ async fn sync_routine(context: &HandlerContext, reqwest_client: &Client, user_in
                                     }
                                 }
                             }
-                            warn!("More details {}", err);
                         }
                     }
                 }
