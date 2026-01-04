@@ -26,7 +26,6 @@ pub struct HandlerContext {
     socket: Mutex<TcpStream>,
     token_store: TokenStorage,
     overlay_sender: broadcast::Sender<(u32, OverlayPeerMessage)>,
-    overlay_listener: Mutex<String>,
     #[getter(skip)]
     db_connection: Mutex<Option<SqlitePool>>,
     #[getter(skip)]
@@ -55,7 +54,6 @@ impl HandlerContext {
             token_store,
             overlay_sender: achievement_sender,
             db_connection: Mutex::new(None),
-            overlay_listener: Mutex::new(String::default()),
             state,
         }
     }
@@ -161,8 +159,10 @@ impl HandlerContext {
     }
 
     pub async fn register_overlay_listener(&self, pid: u32, listener: String) {
-        let mut ov_listener = self.overlay_listener.lock().await;
         self.state.lock().await.pid = pid;
-        *ov_listener = listener;
+
+        self.overlay_sender
+            .send((pid, OverlayPeerMessage::InitConnection(listener)))
+            .ok();
     }
 }

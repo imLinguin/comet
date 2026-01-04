@@ -9,7 +9,7 @@ mod webbroker;
 
 use crate::{constants::TokenStorage, proto::common_utils::ProtoPayload};
 use error::*;
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use crate::api::gog;
 use crate::api::notification_pusher::PusherEvent;
@@ -160,19 +160,36 @@ pub async fn entry_point(
     let user_clone = user_info.clone();
     let overlay_thread = tokio::spawn(async move {
         let mut overlay_receiver = overlay_event_receiver;
-        #[cfg(unix)]
-        let overlay_listener: tokio::net::UnixListener = loop {
-            if shutdown_token_clone.is_cancelled() {
-                return;
-            }
-            tokio::time::sleep(Duration::from_secs(2)).await;
-            let lock = context_clone.overlay_listener().lock().await;
-            if !lock.is_empty() {
-                if let Ok(list) = tokio::net::UnixListener::bind(&*lock) {
-                    break list;
+
+        let pipe_name = loop {
+            tokio::select! {
+                Ok((_pid, msg)) = overlay_receiver.recv() => {
+                    if let OverlayPeerMessage::InitConnection(socket) = msg {
+                        break socket;
+                    }
+                },
+                _ = shutdown_token_clone.cancelled() => {
+                    return;
                 }
             }
         };
+
+        #[cfg(unix)]
+        let Ok(overlay_listener) = tokio::net::UnixListener::bind(&pipe_name) else {
+            return;
+        };
+
+        #[cfg(windows)]
+        let Ok(mut current_socket) = tokio::net::windows::named_pipe::ServerOptions::new()
+            .first_pipe_instance(true)
+            .create(&pipe_name)
+        else {
+            return;
+        };
+
+        #[cfg(windows)]
+        current_socket.connect().await.ok();
+
         #[cfg(unix)]
         let mut current_socket = {
             debug!("Waiting for overlay connection");
@@ -186,24 +203,7 @@ pub async fn entry_point(
                 }
             }
         };
-        #[cfg(windows)]
-        let mut current_socket: tokio::net::windows::named_pipe::NamedPipeServer = loop {
-            if shutdown_token_clone.is_cancelled() {
-                return;
-            }
-            tokio::time::sleep(Duration::from_secs(2)).await;
-            let lock = context_clone.overlay_listener().lock().await;
-            if !lock.is_empty() {
-                if let Ok(list) = tokio::net::windows::named_pipe::ServerOptions::new()
-                    .first_pipe_instance(true)
-                    .create(&*lock)
-                {
-                    if list.connect().await.is_ok() {
-                        break list;
-                    }
-                }
-            }
-        };
+
         let game_pid = context_clone.get_pid().await;
         loop {
             tokio::select! {
@@ -277,10 +277,6 @@ pub async fn entry_point(
 
     let _ = main_socket.await;
     let _ = overlay_thread.await;
-    let lock = context.overlay_listener().lock().await;
-    if !lock.is_empty() {
-        let _ = tokio::fs::remove_file(&*lock).await;
-    }
     sync_routine(&context, &reqwest_client, user_info.clone()).await;
 }
 
