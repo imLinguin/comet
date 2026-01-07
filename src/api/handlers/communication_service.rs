@@ -271,11 +271,10 @@ async fn get_user_stats(
         },
     };
 
-    if stats_source == DataSource::Online {
-        if let Err(err) = db::gameplay::set_statistics(context.db_connection().await, &stats).await
-        {
-            warn!("Failed to set statistics in gameplay database {:?}", err);
-        }
+    if stats_source == DataSource::Online
+        && let Err(err) = db::gameplay::set_statistics(context.db_connection().await, &stats).await
+    {
+        warn!("Failed to set statistics in gameplay database {:?}", err);
     }
 
     context.set_updated_stats(true).await;
@@ -849,13 +848,13 @@ async fn set_leaderboard_score(
             )
             .await
             .map_err(MessageHandlingError::db)?;
-            if let MessageHandlingErrorKind::Network(err) = err.kind {
-                if err.status().is_none() || err.status().is_some_and(|s| s.as_u16() != 409) {
-                    db::gameplay::set_leaderboad_changed(context, &id, true)
-                        .await
-                        .map_err(MessageHandlingError::db)?;
-                    context.set_updated_leaderboards(true).await;
-                }
+            if let MessageHandlingErrorKind::Network(err) = err.kind
+                && (err.status().is_none() || err.status().is_some_and(|s| s.as_u16() != 409))
+            {
+                db::gameplay::set_leaderboad_changed(context, &id, true)
+                    .await
+                    .map_err(MessageHandlingError::db)?;
+                context.set_updated_leaderboards(true).await;
             }
         }
     }

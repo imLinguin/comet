@@ -221,65 +221,64 @@ impl NotificationPusherClient {
                             .get(101);
                         if let Some(UnknownValueRef::Varint(code)) = status_code {
                             let code: i32 = code.try_into().unwrap();
-                            if let Some(enum_code) = Status::from_i32(code) {
-                                if enum_code == Status::OK {
-                                    info!("Subscribing to chat, friends, presence");
-                                    let mut header = Header::new();
-                                    header.set_sort(
-                                        MessageSort::MESSAGE_SORT.value().try_into().unwrap(),
-                                    );
-                                    header.set_type(
-                                        MessageType::SUBSCRIBE_TOPIC_REQUEST
-                                            .value()
-                                            .try_into()
-                                            .unwrap(),
-                                    );
-                                    let mut oseq = 1020;
-                                    for topic in [
-                                        "friends",
-                                        "presence",
-                                        "chat",
-                                        "chat:removed",
-                                        "gameplay",
-                                        "galaxy_library",
-                                        "user_notification",
-                                        "user_notification:consumed",
-                                        "user_notification:removed",
-                                        "external_users",
-                                        "external_accounts",
-                                    ] {
-                                        let mut message_buffer: Vec<u8> = Vec::new();
-                                        let mut request_data = SubscribeTopicRequest::new();
-                                        request_data.set_topic(String::from(topic));
-                                        let payload = request_data.write_to_bytes().unwrap();
-                                        header.set_size(payload.len().try_into().unwrap());
-                                        header.set_oseq(oseq);
-                                        oseq += 1;
-                                        let header_buf = header.write_to_bytes().unwrap();
+                            if let Some(enum_code) = Status::from_i32(code)
+                                && enum_code == Status::OK
+                            {
+                                info!("Subscribing to chat, friends, presence");
+                                let mut header = Header::new();
+                                header.set_sort(
+                                    MessageSort::MESSAGE_SORT.value().try_into().unwrap(),
+                                );
+                                header.set_type(
+                                    MessageType::SUBSCRIBE_TOPIC_REQUEST
+                                        .value()
+                                        .try_into()
+                                        .unwrap(),
+                                );
+                                let mut oseq = 1020;
+                                for topic in [
+                                    "friends",
+                                    "presence",
+                                    "chat",
+                                    "chat:removed",
+                                    "gameplay",
+                                    "galaxy_library",
+                                    "user_notification",
+                                    "user_notification:consumed",
+                                    "user_notification:removed",
+                                    "external_users",
+                                    "external_accounts",
+                                ] {
+                                    let mut message_buffer: Vec<u8> = Vec::new();
+                                    let mut request_data = SubscribeTopicRequest::new();
+                                    request_data.set_topic(String::from(topic));
+                                    let payload = request_data.write_to_bytes().unwrap();
+                                    header.set_size(payload.len().try_into().unwrap());
+                                    header.set_oseq(oseq);
+                                    oseq += 1;
+                                    let header_buf = header.write_to_bytes().unwrap();
 
-                                        let header_size: u16 = header_buf.len().try_into().unwrap();
+                                    let header_size: u16 = header_buf.len().try_into().unwrap();
 
-                                        message_buffer.extend(header_size.to_be_bytes());
-                                        message_buffer.extend(header_buf);
-                                        message_buffer.extend(payload);
+                                    message_buffer.extend(header_size.to_be_bytes());
+                                    message_buffer.extend(header_buf);
+                                    message_buffer.extend(payload);
 
-                                        let new_message =
-                                            tungstenite::Message::Binary(message_buffer);
-                                        if let Err(error) =
-                                            self.pusher_connection.feed(new_message).await
-                                        {
-                                            error!(
-                                                "There was an error subscribing to {}, {:?}",
-                                                topic, error
-                                            );
-                                        }
+                                    let new_message = tungstenite::Message::Binary(message_buffer);
+                                    if let Err(error) =
+                                        self.pusher_connection.feed(new_message).await
+                                    {
+                                        error!(
+                                            "There was an error subscribing to {}, {:?}",
+                                            topic, error
+                                        );
                                     }
-                                    if let Err(error) = self.pusher_connection.flush().await {
-                                        error!("There was an error flushing {:?}", error);
-                                    }
-                                    info!("Completed subscribe requests");
-                                    continue;
                                 }
+                                if let Err(error) = self.pusher_connection.flush().await {
+                                    error!("There was an error flushing {:?}", error);
+                                }
+                                info!("Completed subscribe requests");
+                                continue;
                             }
                         }
                     } else if msg_type == MessageType::SUBSCRIBE_TOPIC_RESPONSE.value() {

@@ -242,11 +242,10 @@ pub async fn entry_point(
                         OverlayPeerMessage::DisablePopups(data) => overlay_peer::encode_overlay_initialized(data).await,
                         _ => Err(MessageHandlingError::ignored().into())
                     };
-                    if let Ok(data) = data {
-                        if let Err(err) = current_socket.write_all(&data).await {
+                    if let Ok(data) = data
+                        && let Err(err) = current_socket.write_all(&data).await {
                             error!("Failed to send web page request {err}");
                         }
-                    }
                 }
                 topic_message = topic_receiver.recv() => {
                     match topic_message {
@@ -273,10 +272,10 @@ pub async fn entry_point(
             }
         }
         #[cfg(unix)]
-        if let Ok(addr) = overlay_listener.local_addr() {
-            if let Some(path) = addr.as_pathname() {
-                let _ = tokio::fs::remove_file(path).await;
-            }
+        if let Ok(addr) = overlay_listener.local_addr()
+            && let Some(path) = addr.as_pathname()
+        {
+            let _ = tokio::fs::remove_file(path).await;
         }
     });
 
@@ -515,38 +514,36 @@ async fn sync_routine(context: &HandlerContext, reqwest_client: &Client, user_in
                         }
                         Err(err) => {
                             warn!("More details {}", err);
-                            if let MessageHandlingErrorKind::Network(networ_error) = err.kind {
-                                if networ_error.status().is_some_and(|s| s == 409) {
-                                    warn!("Leaderboard conflict for {}", id);
-                                    let entries = gog::leaderboards::get_leaderboards_entries(
-                                        context,
-                                        reqwest_client,
-                                        id as u64,
-                                        [("users", &user_info.galaxy_user_id)],
-                                    )
-                                    .await;
-                                    match entries {
-                                        Ok(entries) => {
-                                            if let Some(entry) = entries.items.first() {
-                                                sqlx::query("UPDATE leaderboard SET changed=0, score=$2, rank=$3 WHERE id=$1")
+                            if let MessageHandlingErrorKind::Network(networ_error) = err.kind
+                                && networ_error.status().is_some_and(|s| s == 409)
+                            {
+                                warn!("Leaderboard conflict for {}", id);
+                                let entries = gog::leaderboards::get_leaderboards_entries(
+                                    context,
+                                    reqwest_client,
+                                    id as u64,
+                                    [("users", &user_info.galaxy_user_id)],
+                                )
+                                .await;
+                                match entries {
+                                    Ok(entries) => {
+                                        if let Some(entry) = entries.items.first() {
+                                            sqlx::query("UPDATE leaderboard SET changed=0, score=$2, rank=$3 WHERE id=$1")
                                     .bind(id)
                                     .bind(entry.score)
                                     .bind(entry.rank)
                                     .execute(&mut *transaction)
                                     .await
                                     .expect("Failed to set new score locally");
-                                            }
                                         }
-                                        Err(err) => {
-                                            error!("{}", err);
-                                            sqlx::query(
-                                                "UPDATE leaderboard SET changed=0 WHERE id=$1",
-                                            )
+                                    }
+                                    Err(err) => {
+                                        error!("{}", err);
+                                        sqlx::query("UPDATE leaderboard SET changed=0 WHERE id=$1")
                                             .bind(id)
                                             .execute(&mut *transaction)
                                             .await
                                             .expect("Failed to set new score locally");
-                                        }
                                     }
                                 }
                             }

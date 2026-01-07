@@ -62,10 +62,10 @@ async fn overlay_data_request(
             if let Ok(mut res) = res.json::<serde_json::Value>().await {
                 if let Some(serde_json::Value::Object(images)) = res.get_mut("images") {
                     for (_key, url_value) in images.iter_mut() {
-                        if let serde_json::Value::String(url) = url_value {
-                            if url.starts_with("//") {
-                                *url_value = serde_json::Value::String(format!("https:{}", url));
-                            }
+                        if let serde_json::Value::String(url) = url_value
+                            && url.starts_with("//")
+                        {
+                            *url_value = serde_json::Value::String(format!("https:{}", url));
                         }
                     }
                 }
@@ -225,41 +225,39 @@ async fn load_products(
     parsed_request: serde_json::Value,
     reqwest_client: &reqwest::Client,
 ) -> serde_json::Value {
-    if let Some(arguments) = parsed_request.get("Arguments") {
-        if let Some(ids) = arguments.get("ProductIds") {
-            let ids = ids.as_array().unwrap();
-            let mut products: Vec<serde_json::Value> = Vec::with_capacity(ids.len());
-            for id in ids {
-                if let Ok(res) = reqwest_client
-                    .get(format!(
-                        "https://api.gog.com/products/{}",
-                        id.as_str().unwrap()
-                    ))
-                    .send()
-                    .await
-                {
-                    if let Ok(mut data) = res.json::<serde_json::Value>().await {
-                        if let Some(serde_json::Value::Object(images)) = data.get_mut("images") {
-                            for (_key, url_value) in images.iter_mut() {
-                                if let serde_json::Value::String(url) = url_value {
-                                    if url.starts_with("//") {
-                                        *url_value =
-                                            serde_json::Value::String(format!("https:{}", url));
-                                    }
-                                }
-                            }
+    if let Some(arguments) = parsed_request.get("Arguments")
+        && let Some(ids) = arguments.get("ProductIds")
+    {
+        let ids = ids.as_array().unwrap();
+        let mut products: Vec<serde_json::Value> = Vec::with_capacity(ids.len());
+        for id in ids {
+            if let Ok(res) = reqwest_client
+                .get(format!(
+                    "https://api.gog.com/products/{}",
+                    id.as_str().unwrap()
+                ))
+                .send()
+                .await
+                && let Ok(mut data) = res.json::<serde_json::Value>().await
+            {
+                if let Some(serde_json::Value::Object(images)) = data.get_mut("images") {
+                    for (_key, url_value) in images.iter_mut() {
+                        if let serde_json::Value::String(url) = url_value
+                            && url.starts_with("//")
+                        {
+                            *url_value = serde_json::Value::String(format!("https:{}", url));
                         }
-                        products.push(data);
                     }
                 }
+                products.push(data);
             }
-            return json!({
-                "Command": "ProductDetailsUpdate",
-                "Arguments": {
-                    "Values": products
-                }
-            });
         }
+        return json!({
+            "Command": "ProductDetailsUpdate",
+            "Arguments": {
+                "Values": products
+            }
+        });
     }
 
     json!({})
