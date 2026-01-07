@@ -27,6 +27,8 @@ enum SubCommand {
     Preload {
         client_id: String,
         client_secret: String,
+        #[arg(short, long, help = "Show what stats and achievements are in the API, do not save DB")]
+        list: bool
     },
 
     #[command(about = "Download overlay")]
@@ -168,13 +170,14 @@ async fn main() {
             SubCommand::Preload {
                 client_id,
                 client_secret,
+                list
             } => {
                 let database = db::gameplay::setup_connection(&client_id, &galaxy_user_id)
                     .await
                     .expect("Failed to setup the database");
 
-                if !db::gameplay::has_achievements(&database).await
-                    || !db::gameplay::has_statistics(&database).await
+                if list || (!db::gameplay::has_achievements(&database).await
+                    || !db::gameplay::has_statistics(&database).await)
                 {
                     {
                         let mut connection = database.acquire().await.unwrap();
@@ -213,6 +216,12 @@ async fn main() {
                         &reqwest_client,
                     )
                     .await;
+
+                    if list {
+                        println!("Achievements {:#?}", new_achievements.expect("Failed to get achievements"));
+                        println!("Stats: {:#?}", new_stats.expect("Failed to get stats"));
+                        return;
+                    }
 
                     if let Ok((achievements, mode)) = new_achievements {
                         db::gameplay::set_achievements(database.clone(), &achievements, &mode)
