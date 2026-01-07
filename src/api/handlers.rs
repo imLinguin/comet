@@ -231,7 +231,12 @@ pub async fn entry_point(
                 Ok((pid,msg)) = overlay_receiver.recv() => {
                     if pid != game_pid { continue }
                     let data: Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> = match msg {
-                        OverlayPeerMessage::Achievement(achievement) => overlay_service::achievement_notification(achievement).await,
+                        OverlayPeerMessage::Achievement(achievement) =>
+                            if crate::CONFIG.overlay.notifications.achievements.enabled {
+                                overlay_service::achievement_notification(achievement).await
+                            } else {
+                                Err(MessageHandlingError::ignored().into())
+                            },
                         OverlayPeerMessage::OpenWebPage(page) => overlay_peer::encode_open_web_page(page).await,
                         OverlayPeerMessage::InvitationDialog(con) => overlay_peer::encode_game_invite(con).await,
                         OverlayPeerMessage::DisablePopups(data) => overlay_peer::encode_overlay_initialized(data).await,

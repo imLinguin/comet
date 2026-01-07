@@ -144,6 +144,11 @@ Default configuration file is as follows
 notification_volume = 50  # value from 0 to 100
 position = "bottom_right" # position where notifications are shown: top_left top_right bottom_left bottom_right
 
+# Controls achievement notifications
+[overlay.notifications.achievements]
+# Only on/off switch is available
+enabled = true
+
 # Controls chat message notifications
 [overlay.notifications.chat]
 enabled = true

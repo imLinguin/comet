@@ -50,6 +50,7 @@ impl std::fmt::Display for OverlayPosition {
 #[derive(Deserialize, Default, Debug)]
 #[serde(default)]
 pub struct OverlayNotifications {
+    pub achievements: OverlayNotificationConfig,
     pub chat: OverlayNotificationConfig,
     pub friend_online: OverlayNotificationConfig,
     pub friend_invite: OverlayNotificationConfig,
