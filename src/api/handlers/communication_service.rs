@@ -427,7 +427,7 @@ async fn update_user_stat(
                 && achievement.date_unlocked().is_none()
             {
                 let dt = Utc::now();
-                let timestamp_string = Some(dt.to_rfc3339().to_string());
+                let timestamp_string = Some(dt.to_rfc3339_opts(chrono::SecondsFormat::Secs, false));
                 super::utils::unlock_achievement(context, achievement, timestamp_string).await;
             }
         }
