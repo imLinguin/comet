@@ -27,8 +27,12 @@ enum SubCommand {
     Preload {
         client_id: String,
         client_secret: String,
-        #[arg(short, long, help = "Show what stats and achievements are in the API, do not save DB")]
-        list: bool
+        #[arg(
+            short,
+            long,
+            help = "Show what stats and achievements are in the API, do not save DB"
+        )]
+        list: bool,
     },
 
     #[command(about = "Download overlay")]
@@ -170,14 +174,15 @@ async fn main() {
             SubCommand::Preload {
                 client_id,
                 client_secret,
-                list
+                list,
             } => {
                 let database = db::gameplay::setup_connection(&client_id, &galaxy_user_id)
                     .await
                     .expect("Failed to setup the database");
 
-                if list || (!db::gameplay::has_achievements(&database).await
-                    || !db::gameplay::has_statistics(&database).await)
+                if list
+                    || (!db::gameplay::has_achievements(&database).await
+                        || !db::gameplay::has_statistics(&database).await)
                 {
                     {
                         let mut connection = database.acquire().await.unwrap();
@@ -218,7 +223,10 @@ async fn main() {
                     .await;
 
                     if list {
-                        println!("Achievements {:#?}", new_achievements.expect("Failed to get achievements"));
+                        println!(
+                            "Achievements {:#?}",
+                            new_achievements.expect("Failed to get achievements")
+                        );
                         println!("Stats: {:#?}", new_stats.expect("Failed to get stats"));
                         return;
                     }
@@ -246,7 +254,9 @@ async fn main() {
             SubCommand::Overlay { force } => {
                 #[cfg(target_os = "linux")]
                 if !force {
-                    error!("There is no linux native overlay, to download a windows version use --force");
+                    error!(
+                        "There is no linux native overlay, to download a windows version use --force"
+                    );
                     return;
                 }
                 #[cfg(not(target_os = "linux"))]

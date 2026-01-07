@@ -7,6 +7,7 @@ pub mod constants;
 pub mod db;
 pub mod paths;
 pub mod proto;
+pub mod workarounds;
 
 pub static CERT: &[u8] = include_bytes!("../external/rootCA.pem");
 

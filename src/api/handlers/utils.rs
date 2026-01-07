@@ -1,5 +1,7 @@
 use crate::api::gog;
+use crate::api::gog::achievements::Achievement;
 use crate::api::gog::leaderboards::get_leaderboards_entries;
+use crate::api::gog::overlay::OverlayPeerMessage;
 use crate::api::handlers::context::HandlerContext;
 use crate::api::handlers::error::{MessageHandlingError, MessageHandlingErrorKind};
 use crate::api::structs::IDType;
@@ -12,8 +14,8 @@ use tokio::io::AsyncReadExt;
 
 use crate::proto::galaxy_protocols_communication_service::get_leaderboard_entries_response::LeaderboardEntry;
 use crate::proto::galaxy_protocols_communication_service::{
-    get_leaderboards_response, DisplayType, GetLeaderboardEntriesResponse, GetLeaderboardsResponse,
-    MessageType, SortMethod,
+    DisplayType, GetLeaderboardEntriesResponse, GetLeaderboardsResponse, MessageType, SortMethod,
+    get_leaderboards_response,
 };
 use crate::proto::gog_protocols_pb::Header;
 use crate::proto::{common_utils::ProtoPayload, gog_protocols_pb};
@@ -174,4 +176,31 @@ where
     header.set_size(payload.len().try_into().unwrap());
 
     ProtoPayload { header, payload }
+}
+
+pub async fn unlock_achievement(
+    context: &HandlerContext,
+    mut achievement: Achievement,
+    timestamp_string: Option<String>,
+) {
+    log::info!(
+        "Unlocking achievement {}, {}",
+        achievement.achievement_key(),
+        achievement.name()
+    );
+
+    db::gameplay::set_achievement(
+        context,
+        achievement.achievement_id().parse().unwrap(),
+        timestamp_string.clone(),
+    )
+    .await
+    .expect("Failed to write achievement to database");
+
+    context.set_updated_achievements(true).await;
+    achievement.date_unlocked = timestamp_string;
+    let pid = context.get_pid().await;
+    let _ = context
+        .overlay_sender()
+        .send((pid, OverlayPeerMessage::Achievement(achievement.clone())));
 }

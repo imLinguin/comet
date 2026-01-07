@@ -1,5 +1,4 @@
 use crate::api::gog;
-use crate::api::gog::overlay::OverlayPeerMessage;
 use crate::api::gog::stats::FieldValue;
 use crate::api::handlers::context::HandlerContext;
 use crate::api::structs::{DataSource, IDType, UserInfo};
@@ -17,12 +16,12 @@ use tokio::io::AsyncWriteExt;
 use crate::proto::common_utils::ProtoPayload;
 
 use super::error::*;
-use crate::proto::galaxy_protocols_communication_service::get_user_achievements_response::UserAchievement;
 use crate::proto::galaxy_protocols_communication_service::EnvironmentType::ENVIRONMENT_PRODUCTION;
 use crate::proto::galaxy_protocols_communication_service::Region::REGION_WORLD_WIDE;
 use crate::proto::galaxy_protocols_communication_service::ValueType::{
     VALUE_TYPE_AVGRATE, VALUE_TYPE_FLOAT, VALUE_TYPE_INT, VALUE_TYPE_UNDEFINED,
 };
+use crate::proto::galaxy_protocols_communication_service::get_user_achievements_response::UserAchievement;
 use crate::proto::galaxy_protocols_communication_service::*;
 use crate::proto::gog_protocols_pb::Header;
 
@@ -169,6 +168,10 @@ async fn auth_info_request(
             "There was an error setting up the gameplay database {:#?}",
             err
         );
+    }
+
+    if let Err(err) = context.load_workarounds(client_id).await {
+        log::warn!("Failed to load workarounds or client {client_id} {err}");
     }
 
     {
@@ -377,6 +380,7 @@ async fn update_user_stat(
 
     let stat_id: u64 = request_data.stat_id();
     let stat_id: i64 = stat_id.try_into().unwrap();
+    let stat_key = db::gameplay::get_stat_key(context, stat_id).await.ok();
     let value_type = request_data.value_type();
     match value_type {
         VALUE_TYPE_FLOAT | VALUE_TYPE_AVGRATE => {
@@ -397,6 +401,38 @@ async fn update_user_stat(
     };
 
     context.set_updated_stats(true).await;
+
+    if let Some(stat_key) = stat_key {
+        let workarounds = context.get_progress_workarounds(&stat_key).await;
+        for workaround in workarounds {
+            let matching = match value_type {
+                VALUE_TYPE_FLOAT | VALUE_TYPE_AVGRATE => workaround
+                    .threshold
+                    .parse::<f32>()
+                    .is_ok_and(|val| val <= request_data.float_value()),
+                VALUE_TYPE_INT => workaround
+                    .threshold
+                    .parse::<i32>()
+                    .is_ok_and(|val| val <= request_data.int_value()),
+                VALUE_TYPE_UNDEFINED => false,
+            };
+            log::debug!("Checking workaround for {stat_key}, matching: {matching}");
+            if !matching {
+                continue;
+            }
+            // Unlock achievement
+            if let Some(achievement) =
+                db::gameplay::get_achievement_by_key(context, workaround.achievement_key)
+                    .await
+                    .ok()
+                && achievement.date_unlocked().is_none()
+            {
+                let dt = Utc::now();
+                let timestamp_string = Some(dt.to_rfc3339().to_string());
+                super::utils::unlock_achievement(context, achievement, timestamp_string).await;
+            }
+        }
+    }
 
     let mut header = Header::new();
     header.set_type(
@@ -537,25 +573,12 @@ async fn unlock_user_achievement(
 
     // FIXME: Handle errors gracefully
     // Check with database first
-    let mut achievement = db::gameplay::get_achievement(context, ach_id)
+    let achievement = db::gameplay::get_achievement(context, ach_id)
         .await
         .expect("Failed to read database");
 
     if achievement.date_unlocked().is_none() {
-        info!(
-            "Unlocking achievement {}, {}",
-            achievement.achievement_key(),
-            achievement.name()
-        );
-        db::gameplay::set_achievement(context, ach_id, timestamp_string.clone())
-            .await
-            .expect("Failed to write achievement to database");
-        context.set_updated_achievements(true).await;
-        achievement.date_unlocked = timestamp_string;
-        let pid = context.get_pid().await;
-        let _ = context
-            .overlay_sender()
-            .send((pid, OverlayPeerMessage::Achievement(achievement)));
+        super::utils::unlock_achievement(context, achievement, timestamp_string).await;
     }
 
     let mut header = Header::new();

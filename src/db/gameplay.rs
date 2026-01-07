@@ -257,6 +257,16 @@ pub async fn set_stat_int(context: &HandlerContext, stat_id: i64, value: i32) ->
     Ok(())
 }
 
+pub async fn get_stat_key(context: &HandlerContext, stat_id: i64) -> Result<String, Error> {
+    let database = context.db_connection().await;
+    let mut connection = database.acquire().await?;
+    let row = sqlx::query("SELECT key FROM statistic WHERE id=$1;")
+        .bind(stat_id)
+        .fetch_one(&mut *connection)
+        .await?;
+    row.try_get(0)
+}
+
 pub async fn reset_stats(context: &HandlerContext) -> Result<(), Error> {
     let database = context.db_connection().await;
     let mut connection = database.acquire().await?;
@@ -414,6 +424,26 @@ pub async fn get_achievement(
         FROM achievement WHERE id=$1"#,
     )
     .bind(achievement_id)
+    .fetch_one(&mut *connection)
+    .await?;
+
+    Ok(achievement_from_database_row(result))
+}
+
+pub async fn get_achievement_by_key(
+    context: &HandlerContext,
+    achievement_key: String,
+) -> Result<Achievement, Error> {
+    let database = context.db_connection().await;
+    let mut connection = database.acquire().await?;
+
+    let result = sqlx::query(
+        r#"SELECT id, key, name, description, visible_while_locked,
+        unlock_time, image_url_locked, image_url_unlocked, rarity,
+        rarity_level_description, rarity_level_slug
+        FROM achievement WHERE key=$1"#,
+    )
+    .bind(achievement_key)
     .fetch_one(&mut *connection)
     .await?;
 

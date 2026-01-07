@@ -1,14 +1,14 @@
 use std::sync::Arc;
 
+use crate::CONFIG;
 use crate::api::structs::UserInfo;
 use crate::proto::galaxy_protocols_overlay_for_client::*;
 use crate::proto::{common_utils::ProtoPayload, gog_protocols_pb};
-use crate::CONFIG;
 use log::warn;
 use protobuf::{Enum, Message};
 use serde_json::json;
 
-use super::{context::HandlerContext, MessageHandlingError, MessageHandlingErrorKind};
+use super::{MessageHandlingError, MessageHandlingErrorKind, context::HandlerContext};
 
 // THIS CODE ARE MOSTLY STUBS FOR OVERLAY
 // The Galaxy Overlay has ties with GOG Galaxy Client, and expects support for the same methods
@@ -60,7 +60,7 @@ async fn overlay_data_request(
             .await
         {
             if let Ok(mut res) = res.json::<serde_json::Value>().await {
-                if let Some(serde_json::Value::Object(ref mut images)) = res.get_mut("images") {
+                if let Some(serde_json::Value::Object(images)) = res.get_mut("images") {
                     for (_key, url_value) in images.iter_mut() {
                         if let serde_json::Value::String(url) = url_value {
                             if url.starts_with("//") {
@@ -239,9 +239,7 @@ async fn load_products(
                     .await
                 {
                     if let Ok(mut data) = res.json::<serde_json::Value>().await {
-                        if let Some(serde_json::Value::Object(ref mut images)) =
-                            data.get_mut("images")
-                        {
+                        if let Some(serde_json::Value::Object(images)) = data.get_mut("images") {
                             for (_key, url_value) in images.iter_mut() {
                                 if let serde_json::Value::String(url) = url_value {
                                     if url.starts_with("//") {

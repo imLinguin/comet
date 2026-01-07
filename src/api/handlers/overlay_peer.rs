@@ -4,7 +4,7 @@ use crate::{api::gog::overlay::OverlayPeerMessage, proto::galaxy_protocols_overl
 use log::warn;
 use protobuf::{Enum, Message};
 
-use super::{context::HandlerContext, MessageHandlingError};
+use super::{MessageHandlingError, context::HandlerContext};
 
 pub async fn entry_point(
     payload: &ProtoPayload,

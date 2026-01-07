@@ -2,12 +2,13 @@ use std::collections::HashSet;
 
 use crate::api::gog::overlay::OverlayPeerMessage;
 use crate::constants::TokenStorage;
-use crate::db;
+use crate::workarounds::StatAchievementWorkaround;
+use crate::{db, paths};
 use derive_getters::Getters;
 use sqlx::SqlitePool;
-use tokio::io::AsyncReadExt;
+use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::net::TcpStream;
-use tokio::sync::{broadcast, Mutex, MutexGuard};
+use tokio::sync::{Mutex, MutexGuard, broadcast};
 
 pub struct State {
     is_online: bool,
@@ -30,6 +31,8 @@ pub struct HandlerContext {
     db_connection: Mutex<Option<SqlitePool>>,
     #[getter(skip)]
     state: Mutex<State>,
+    #[getter(skip)]
+    progress_workarounds: Mutex<Vec<StatAchievementWorkaround>>,
 }
 
 impl HandlerContext {
@@ -54,6 +57,7 @@ impl HandlerContext {
             token_store,
             overlay_sender: achievement_sender,
             db_connection: Mutex::new(None),
+            progress_workarounds: Mutex::new(Vec::new()),
             state,
         }
     }
@@ -98,6 +102,34 @@ impl HandlerContext {
     }
     pub async fn set_updated_leaderboards(&self, value: bool) {
         self.state.lock().await.updated_leaderboards = value
+    }
+
+    pub async fn load_workarounds(&self, client_id: &str) -> Result<(), tokio::io::Error> {
+        let stats_path = paths::WORKAROUNDS.join(format!("{client_id}.progress"));
+        let file = tokio::fs::OpenOptions::new()
+            .read(true)
+            .open(stats_path)
+            .await?;
+        let reader = BufReader::new(file);
+        let mut lines = reader.lines();
+        let mut stat_list: Vec<StatAchievementWorkaround> = Vec::new();
+        while let Ok(Some(line)) = lines.next_line().await {
+            let mut keys = line.split(" ");
+            let achievement_key = keys.next();
+            let stat_key = keys.next();
+            let stat_threshold = keys.next();
+            if let (Some(ack), Some(stk), Some(sthd)) = (achievement_key, stat_key, stat_threshold)
+            {
+                log::debug!("Adding {stk} workaround to the list");
+                stat_list.push(StatAchievementWorkaround {
+                    statistic_key: stk.to_owned(),
+                    achievement_key: ack.to_owned(),
+                    threshold: sthd.to_owned(),
+                });
+            }
+        }
+        *self.progress_workarounds.lock().await = stat_list;
+        Ok(())
     }
 
     pub async fn setup_database(&self, client_id: &str, user_id: &str) -> Result<(), sqlx::Error> {
@@ -156,6 +188,18 @@ impl HandlerContext {
 
     pub async fn get_pid(&self) -> u32 {
         self.state.lock().await.pid
+    }
+
+    pub async fn get_progress_workarounds(
+        &self,
+        stat_key: &String,
+    ) -> Vec<StatAchievementWorkaround> {
+        let workarounds = self.progress_workarounds.lock().await;
+        workarounds
+            .iter()
+            .filter(|workaround| workaround.statistic_key == *stat_key)
+            .cloned()
+            .collect()
     }
 
     pub async fn register_overlay_listener(&self, pid: u32, listener: String) {

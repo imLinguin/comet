@@ -6,7 +6,7 @@ use tokio::net::TcpStream;
 use tokio::sync::broadcast::Sender;
 use tokio::time;
 use tokio_tungstenite::{
-    connect_async_tls_with_config, tungstenite, MaybeTlsStream, WebSocketStream,
+    MaybeTlsStream, WebSocketStream, connect_async_tls_with_config, tungstenite,
 };
 use tokio_util::sync::CancellationToken;
 
@@ -206,7 +206,10 @@ impl NotificationPusherClient {
                     let sort: i32 = parsed_message.header.sort().try_into().unwrap();
 
                     if sort != MessageSort::MESSAGE_SORT.value() {
-                        warn!("Notifications pusher sort has unexpected value {}, ignoring... this may introduce unexpected behavior", sort);
+                        warn!(
+                            "Notifications pusher sort has unexpected value {}, ignoring... this may introduce unexpected behavior",
+                            sort
+                        );
                     }
 
                     if msg_type == MessageType::AUTH_RESPONSE.value() {

@@ -1,4 +1,4 @@
-use super::{context::HandlerContext, MessageHandlingError};
+use super::{MessageHandlingError, context::HandlerContext};
 use crate::api::gog::achievements::Achievement;
 use crate::constants;
 use crate::proto::common_utils::ProtoPayload;

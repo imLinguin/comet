@@ -39,5 +39,6 @@ lazy_static! {
 lazy_static! {
     pub static ref GAMEPLAY_STORAGE: PathBuf = DATA_PATH.join("gameplay");
     pub static ref REDISTS_STORAGE: PathBuf = DATA_PATH.join("redist");
+    pub static ref WORKAROUNDS: PathBuf = DATA_PATH.join("workarounds");
     pub static ref CONFIG_FILE: PathBuf = CONFIG_PATH.join("config.toml");
 }
