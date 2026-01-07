@@ -62,6 +62,7 @@ impl Stat {
 
 #[derive(Deserialize, Debug)]
 struct StatsResponse {
+    #[allow(dead_code)]
     total_count: u32,
     items: Vec<Stat>,
 }

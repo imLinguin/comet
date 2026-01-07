@@ -405,14 +405,22 @@ async fn sync_routine(context: &HandlerContext, reqwest_client: &Client, user_in
                         achievement.date_unlocked().to_owned(),
                     )
                     .await;
-                    if result.is_ok() {
-                        // Update local entry with changed to false
-                        let a_id: i64 = achievement.achievement_id().parse().unwrap();
-                        sqlx::query("UPDATE achievement SET changed=0 WHERE id=$1")
-                            .bind(a_id)
-                            .execute(&mut *transaction)
-                            .await
-                            .expect("Failed to update changed status");
+                    match result {
+                        Ok(()) => {
+                            // Update local entry with changed to false
+                            let a_id: i64 = achievement.achievement_id().parse().unwrap();
+                            sqlx::query("UPDATE achievement SET changed=0 WHERE id=$1")
+                                .bind(a_id)
+                                .execute(&mut *transaction)
+                                .await
+                                .expect("Failed to update changed status");
+                        }
+                        Err(err) => {
+                            log::error!(
+                                "Failed to set achievement {} {err:?}",
+                                achievement.achievement_key()
+                            );
+                        }
                     }
                 }
                 transaction.commit().await.expect("Failed to save changes");
@@ -449,14 +457,19 @@ async fn sync_routine(context: &HandlerContext, reqwest_client: &Client, user_in
                     )
                     .await;
 
-                    if result.is_ok() {
-                        // Update local entry with changed to false
-                        let a_id: i64 = stat.stat_id().parse().unwrap();
-                        sqlx::query("UPDATE statistic SET changed=0 WHERE id=$1")
-                            .bind(a_id)
-                            .execute(&mut *transaction)
-                            .await
-                            .expect("Failed to update changed status");
+                    match result {
+                        Ok(()) => {
+                            // Update local entry with changed to false
+                            let a_id: i64 = stat.stat_id().parse().unwrap();
+                            sqlx::query("UPDATE statistic SET changed=0 WHERE id=$1")
+                                .bind(a_id)
+                                .execute(&mut *transaction)
+                                .await
+                                .expect("Failed to update changed status");
+                        }
+                        Err(err) => {
+                            log::error!("Failed to upload statistic {} {err:?}", stat.stat_key());
+                        }
                     }
                 }
                 transaction.commit().await.expect("Failed to save changes");
