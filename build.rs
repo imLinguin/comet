@@ -4,10 +4,18 @@ use std::path::PathBuf;
 fn main() {
     println!("cargo:rerun-if-changed=proto/galaxy.protocols.communication_service.proto");
     println!("cargo:rerun-if-env-changed=PROTOC");
-    let vendored_protoc = protoc_bin_vendored::protoc_bin_path().unwrap();
     let protoc_path = match std::env::var("PROTOC") {
         Ok(protoc) => PathBuf::from(&protoc),
-        Err(_) => vendored_protoc,
+        Err(_) => match protoc_bin_vendored::protoc_bin_path() {
+            Ok(vendored) => vendored,
+            Err(e) => {
+                println!(
+                    "cargo:warning=Vendored protoc unavailable ({}), falling back to system protoc",
+                    e
+                );
+                PathBuf::from("protoc")
+            }
+        },
     };
     Codegen::new()
         .protoc()
