@@ -54,7 +54,7 @@ While GOG does not officially support GOG Galaxy features (achievements and lead
 
 |Game Title|Game Version|Native Linux Version Works|Comet Version|GalaxyCommunication.exe Service Required|GOG Galaxy Features|Notes|
 |-----|-----|-----|-----|-----|-----|-----|
-|[Absolute Drift](https://www.gog.com/game/absolute_drift)|5f6049d (6/26/2023)|🔲 Not Available|[commit `ed38c3d`](https://github.com/kevin-wijnen/comet/commit/ed38c3d5253893779ba3d7ab828af442652f6044)|🔲 No|🟩 Achievements 🟩 Leaderboard|Achievements do work. Leaderboard support works as of Comet version `ed38c3d`.|
+|[Absolute Drift](https://www.gog.com/game/absolute_drift)|5f6049d (6/26/2023)|❌ Not Working|[commit `ed38c3d`](https://github.com/kevin-wijnen/comet/commit/ed38c3d5253893779ba3d7ab828af442652f6044)|🔲 No|🟩 Achievements 🟩 Leaderboard|Achievements do work. Leaderboard support works as of Comet version `ed38c3d`.|
 |[Alder's Blood Prologue](https://www.gog.com/game/alders_blood_prologue)|1.0.20a (4/13/2020)|🔲 Not Available|[commit `55e4025`](https://github.com/imLinguin/comet/commit/55e402538df3bff354bf2e1e9a54fa4e5e091122)|🔲 No|🟩 Achievements 🔲 Leaderboard|Achievement connection does work.|
 |[Alien Breed: Impact](https://www.gog.com/game/alien_breed_impact)|126 (5/30/2022)|🔲 Not Available|[commit `55e4025`](https://github.com/imLinguin/comet/commit/55e402538df3bff354bf2e1e9a54fa4e5e091122)|🔲 No|🟩 Achievements 🔲 Leaderboard|Achievement connection does work. Did not get to boot the game on Linux properly yet, however.|
 |[BATTLETECH](https://www.gog.com/game/battletech_game)|1.9.1-686R (2/26/2020)|❌ Not Working|[`v0.2.0`](https://github.com/imLinguin/comet/releases/tag/v0.2.0)|🔲 No|🟩 Achievements 🔲 Leaderboard|Multiplayer is untested.|
