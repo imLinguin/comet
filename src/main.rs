@@ -283,11 +283,11 @@ async fn main() {
                 .await;
 
                 if let Err(err) = web {
-                    error!("Unexpected error occured when downloading web component {err}");
+                    error!("Unexpected error occurred when downloading web component {err}");
                 }
 
                 if let Err(err) = overlay {
-                    error!("Unexpected error occured when downloading overlay component {err}");
+                    error!("Unexpected error occurred when downloading overlay component {err}");
                 }
 
                 log::info!("Done");
