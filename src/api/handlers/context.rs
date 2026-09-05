@@ -16,6 +16,8 @@ pub struct State {
     client_id: Option<String>,
     client_secret: Option<String>,
     subscribed_topics: HashSet<String>,
+    achievements_refreshed: bool,
+    stats_refreshed: bool,
     updated_achievements: bool,
     updated_stats: bool,
     updated_leaderboards: bool,
@@ -47,6 +49,8 @@ impl HandlerContext {
             client_id: None,
             client_secret: None,
             subscribed_topics: HashSet::new(),
+            achievements_refreshed: false,
+            stats_refreshed: false,
             updated_achievements: false,
             updated_stats: false,
             updated_leaderboards: true,
@@ -184,6 +188,19 @@ impl HandlerContext {
     }
     pub async fn updated_leaderboards(&self) -> bool {
         self.state.lock().await.updated_leaderboards
+    }
+
+    pub async fn achievements_refreshed(&self) -> bool {
+        self.state.lock().await.achievements_refreshed
+    }
+    pub async fn set_achievements_refreshed(&self, refreshed: bool) {
+        self.state.lock().await.achievements_refreshed = refreshed;
+    }
+    pub async fn stats_refreshed(&self) -> bool {
+        self.state.lock().await.stats_refreshed
+    }
+    pub async fn set_stats_refreshed(&self, refreshed: bool) {
+        self.state.lock().await.stats_refreshed = refreshed;
     }
 
     pub async fn get_pid(&self) -> u32 {

@@ -1,5 +1,6 @@
-use crate::api::handlers::context::HandlerContext;
 use crate::api::handlers::error::MessageHandlingError;
+use crate::api::structs::AchievementData;
+use crate::api::{handlers::context::HandlerContext, structs::DataSource};
 use crate::constants::TokenStorage;
 use derive_getters::Getters;
 use reqwest::Client;
@@ -65,7 +66,7 @@ pub async fn fetch_achievements(
     client_id: &str,
     user_id: &str,
     reqwest_client: &Client,
-) -> Result<(Vec<Achievement>, String), MessageHandlingError> {
+) -> Result<DataSource<AchievementData>, MessageHandlingError> {
     let token = {
         let lock = token_store.lock().await;
         lock.get(client_id)
@@ -90,7 +91,10 @@ pub async fn fetch_achievements(
         .await
         .map_err(MessageHandlingError::network)?;
 
-    Ok((achievements_data.items, achievements_data.achievements_mode))
+    Ok(DataSource::Online(AchievementData {
+        achievements: achievements_data.items,
+        mode: achievements_data.achievements_mode,
+    }))
 }
 
 #[derive(Serialize)]

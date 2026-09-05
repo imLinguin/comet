@@ -7,6 +7,7 @@ use crate::paths::REDISTS_STORAGE;
 use crate::{constants, db};
 use base64::prelude::*;
 use chrono::{TimeZone, Utc};
+use futures::TryFutureExt;
 use log::{debug, info, warn};
 use protobuf::{Enum, Message};
 use reqwest::{Client, StatusCode};
@@ -249,33 +250,32 @@ async fn get_user_stats(
     user_info: Arc<UserInfo>,
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
+    let client_id = context.client_id().await.unwrap();
+    let stats_refreshed = context.stats_refreshed().await;
+
     let new_stats = gog::stats::fetch_stats(
         context.token_store(),
-        &context.client_id().await.unwrap(),
+        &client_id,
         &user_info.galaxy_user_id,
         reqwest_client,
-    )
-    .await;
-    let db_stats = db::gameplay::get_statistics(context, false).await;
+    );
+    let db_stats =
+        db::gameplay::get_statistics(context, false).map_err(|err| MessageHandlingError::db(err));
 
-    let mut stats_source = DataSource::Online;
+    let stats = if stats_refreshed {
+        db_stats.or_else(|_| new_stats).await
+    } else {
+        new_stats.or_else(|_| db_stats).await
+    }?;
 
-    let stats = match new_stats {
-        Ok(stats) => stats,
-        Err(_) => match db_stats {
-            Ok(stats) => {
-                stats_source = DataSource::Local;
-                stats
-            }
-            Err(_) => panic!("Unable to retrieve stats"),
-        },
-    };
+    if let DataSource::Online(stats) = &stats {
+        context.set_stats_refreshed(true).await;
 
-    if stats_source == DataSource::Online
-        && let Err(err) = db::gameplay::set_statistics(context.db_connection().await, &stats).await
-    {
-        warn!("Failed to set statistics in gameplay database {:?}", err);
+        if let Err(err) = db::gameplay::set_statistics(context.db_connection().await, stats).await {
+            warn!("Failed to set statistics in gameplay database {:?}", err);
+        }
     }
+    let stats = stats.into_inner();
 
     context.set_updated_stats(true).await;
 
@@ -480,39 +480,38 @@ async fn get_user_achievements(
     reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let client_id = context.client_id().await.unwrap();
+    let achievements_refreshed = context.achievements_refreshed().await;
     let online_achievements = gog::achievements::fetch_achievements(
         context.token_store(),
         &client_id,
         &user_info.galaxy_user_id,
         reqwest_client,
-    )
-    .await;
-    let local_achievements = db::gameplay::get_achievements(context, false).await;
+    );
 
-    let mut achievements_source = DataSource::Online;
-    let (achievements, achievements_mode) = match online_achievements {
-        Ok(achievements) => achievements,
-        Err(_) => match local_achievements {
-            Ok(achievements) => {
-                achievements_source = DataSource::Local;
-                achievements
-            }
-            Err(_) => panic!("Unable to load achievements"),
-        },
-    };
+    let local_achievements =
+        db::gameplay::get_achievements(context, false).map_err(|err| MessageHandlingError::db(err));
 
-    if achievements_source == DataSource::Online {
+    let ach_res = if achievements_refreshed {
+        local_achievements.or_else(|_| online_achievements).await
+    } else {
+        online_achievements.or_else(|_| local_achievements).await
+    }?;
+
+    if let DataSource::Online(data) = &ach_res {
         if let Err(err) = db::gameplay::set_achievements(
             context.db_connection().await,
-            &achievements,
-            &achievements_mode,
+            &data.achievements,
+            &data.mode,
         )
         .await
         {
             warn!("Failed to set achievements in gameplay database {:?}", err);
         }
+        context.set_achievements_refreshed(true).await;
         context.set_updated_achievements(true).await;
     }
+
+    let achievement_data = ach_res.into_inner();
 
     let mut header = Header::new();
     header.set_type(
@@ -522,10 +521,10 @@ async fn get_user_achievements(
             .unwrap(),
     );
     let mut content = GetUserAchievementsResponse::new();
-    content.set_achievements_mode(achievements_mode);
+    content.set_achievements_mode(achievement_data.mode);
     content.set_language(crate::LOCALE.clone());
 
-    for achievement in achievements {
+    for achievement in achievement_data.achievements {
         let mut proto_achievement = UserAchievement::new();
         proto_achievement.set_achievement_id(achievement.achievement_id().parse().unwrap());
         proto_achievement.set_key(achievement.achievement_key().to_owned());

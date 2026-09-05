@@ -6,6 +6,8 @@ pub mod structs {
     use chrono::{DateTime, Utc};
     use serde::Deserialize;
 
+    use crate::api::gog::achievements::Achievement;
+
     #[derive(Debug, Clone, Deserialize)]
     pub struct Token {
         pub access_token: String,
@@ -33,10 +35,24 @@ pub mod structs {
         pub galaxy_user_id: String,
     }
 
-    #[derive(PartialEq)]
-    pub enum DataSource {
-        Online,
-        Local,
+    #[derive(Debug)]
+    pub enum DataSource<T> {
+        Online(T),
+        Local(T),
+    }
+
+    impl<T> DataSource<T> {
+        pub fn into_inner(self) -> T {
+            match self {
+                Self::Local(d) | Self::Online(d) => d,
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    pub struct AchievementData {
+        pub achievements: Vec<Achievement>,
+        pub mode: String,
     }
 
     pub enum IDType {

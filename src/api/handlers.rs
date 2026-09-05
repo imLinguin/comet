@@ -387,7 +387,8 @@ async fn sync_routine(context: &HandlerContext, reqwest_client: &Client, user_in
         info!("Uploading new achievements");
         let changed_achievements = db::gameplay::get_achievements(context, true).await;
         match changed_achievements {
-            Ok((achievements, _mode)) => {
+            Ok(achs) => {
+                let achs = achs.into_inner();
                 let db = context.db_connection().await;
                 let mut connection = db
                     .acquire()
@@ -395,7 +396,7 @@ async fn sync_routine(context: &HandlerContext, reqwest_client: &Client, user_in
                     .expect("Failed to get database connection");
                 let mut transaction = connection.begin().await.unwrap();
 
-                for achievement in achievements {
+                for achievement in achs.achievements {
                     debug!("Setting achievement {}", achievement.achievement_key());
                     let result = gog::achievements::set_achievement(
                         context,
@@ -437,6 +438,7 @@ async fn sync_routine(context: &HandlerContext, reqwest_client: &Client, user_in
         let changed_statistics = db::gameplay::get_statistics(context, true).await;
         match changed_statistics {
             Ok(stats) => {
+                let stats = stats.into_inner();
                 let db = context.db_connection().await;
                 let mut connection = db
                     .acquire()

@@ -2,6 +2,7 @@ use crate::api::gog::achievements::Achievement;
 use crate::api::gog::leaderboards::LeaderboardDefinition;
 use crate::api::gog::stats::{FieldValue, Stat};
 use crate::api::handlers::context::HandlerContext;
+use crate::api::structs::{AchievementData, DataSource};
 use crate::paths;
 use log::info;
 use sqlx::sqlite::SqliteRow;
@@ -63,7 +64,7 @@ pub async fn has_statistics(database: &SqlitePool) -> bool {
 pub async fn get_statistics(
     context: &HandlerContext,
     only_changed: bool,
-) -> Result<Vec<Stat>, Error> {
+) -> Result<DataSource<Vec<Stat>>, Error> {
     let database = context.db_connection().await;
     let mut connection = database.acquire().await?;
     let mut stats: Vec<Stat> = Vec::new();
@@ -132,7 +133,7 @@ pub async fn get_statistics(
         stats.push(new_stat)
     }
 
-    Ok(stats)
+    Ok(DataSource::Local(stats))
 }
 
 pub async fn set_statistics(database: SqlitePool, stats: &Vec<Stat>) -> Result<(), Error> {
@@ -322,19 +323,16 @@ fn achievement_from_database_row(row: SqliteRow) -> Achievement {
 pub async fn get_achievements(
     context: &HandlerContext,
     only_changed: bool,
-) -> Result<(Vec<Achievement>, String), Error> {
+) -> Result<DataSource<AchievementData>, Error> {
     let database = context.db_connection().await;
     let mut connection = database.acquire().await?;
     let mut achievements: Vec<Achievement> = Vec::new();
 
     let mode_res = sqlx::query("SELECT * FROM database_info WHERE key='achievements_mode'")
         .fetch_one(&mut *connection)
-        .await;
+        .await?;
 
-    if let Err(sqlx::Error::RowNotFound) = mode_res {
-        return Ok((achievements, String::default()));
-    }
-    let achievements_mode = mode_res.unwrap().try_get("value")?;
+    let achievements_mode = mode_res.try_get("value")?;
 
     let db_achievements = sqlx::query(
         r#"SELECT id, key, name, description, visible_while_locked,
@@ -351,7 +349,10 @@ pub async fn get_achievements(
         achievements.push(new_achievement);
     }
 
-    Ok((achievements, achievements_mode))
+    Ok(DataSource::Local(AchievementData {
+        achievements,
+        mode: achievements_mode,
+    }))
 }
 
 pub async fn set_achievements(

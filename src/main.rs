@@ -225,22 +225,32 @@ async fn main() {
                     if list {
                         println!(
                             "Achievements {:#?}",
-                            new_achievements.expect("Failed to get achievements")
+                            new_achievements
+                                .expect("Failed to get achievements")
+                                .into_inner()
                         );
-                        println!("Stats: {:#?}", new_stats.expect("Failed to get stats"));
+                        println!(
+                            "Stats: {:#?}",
+                            new_stats.expect("Failed to get stats").into_inner()
+                        );
                         return;
                     }
 
-                    if let Ok((achievements, mode)) = new_achievements {
-                        db::gameplay::set_achievements(database.clone(), &achievements, &mode)
-                            .await
-                            .expect("Failed to write to the database");
+                    if let Ok(achievements) = new_achievements {
+                        let achievements = achievements.into_inner();
+                        db::gameplay::set_achievements(
+                            database.clone(),
+                            &achievements.achievements,
+                            &achievements.mode,
+                        )
+                        .await
+                        .expect("Failed to write to the database");
                         info!("Got achievements");
                     } else {
                         error!("Failed to fetch achievements");
                     }
                     if let Ok(stats) = new_stats {
-                        db::gameplay::set_statistics(database.clone(), &stats)
+                        db::gameplay::set_statistics(database.clone(), &stats.into_inner())
                             .await
                             .expect("Failed to write to the database");
                         info!("Got stats");

@@ -1,5 +1,5 @@
-use crate::api::handlers::context::HandlerContext;
 use crate::api::handlers::error::MessageHandlingError;
+use crate::api::{handlers::context::HandlerContext, structs::DataSource};
 use crate::constants::TokenStorage;
 use derive_getters::Getters;
 use reqwest::Client;
@@ -72,7 +72,7 @@ pub async fn fetch_stats(
     client_id: &str,
     user_id: &str,
     reqwest_client: &Client,
-) -> Result<Vec<Stat>, MessageHandlingError> {
+) -> Result<DataSource<Vec<Stat>>, MessageHandlingError> {
     let token = {
         let lock = token_store.lock().await;
         lock.get(client_id)
@@ -96,7 +96,7 @@ pub async fn fetch_stats(
         .await
         .map_err(MessageHandlingError::network)?;
 
-    Ok(stats_data.items)
+    Ok(DataSource::Online(stats_data.items))
 }
 
 #[derive(Serialize)]
