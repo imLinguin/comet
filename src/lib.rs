@@ -16,4 +16,5 @@ lazy_static! {
     pub static ref LOCALE: String = sys_locale::get_locale()
         .filter(|x| x.contains("-"))
         .unwrap_or_else(|| String::from("en-US"));
+    pub static ref IGNORE_TOPIC: bool = std::env::var("COMET_IGNORE_TOPIC").map(|v| v == "1").unwrap_or_default();
 }

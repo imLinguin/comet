@@ -142,7 +142,7 @@ pub async fn entry_point(
                             context_clone.set_offline().await
                         },
                         Ok(PusherEvent::Topic(message, topic)) => {
-                            if context_clone.is_subscribed(&topic).await {
+                            if !*crate::IGNORE_TOPIC && context_clone.is_subscribed(&topic).await {
                                 if let Err(err) = context_clone.socket_write_mut().await.write_all(message.as_slice()).await {
                                     error!("Failed to forward topic message to socket {}", err);
                                 }
