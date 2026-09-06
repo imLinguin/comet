@@ -64,31 +64,35 @@ pub async fn entry_point(
                 size_read = context_clone.socket_read_u16() => {
                     match size_read {
                         Ok(h_size) => {
-                            let payload = utils::parse_payload(h_size, &mut *context_clone.socket_mut().await).await;
+                            let payload = utils::parse_payload(h_size, &mut *context_clone.socket_read_mut().await).await;
                             let Ok(payload) = payload else { continue };
-
-                            match handle_message(&context_clone, user_clone.clone(), &reqwest_clone, payload).await {
-                                Ok(res) => {
-                                    if let Err(err) = context_clone.socket_mut().await.write_all(&res).await {
-                                        error!("Failed to write response {err}");
-                                    }
-                                },
-                                Err(err) => {
-                                    match err.kind {
-                                        MessageHandlingErrorKind::Ignored => (),
-                                        MessageHandlingErrorKind::NotImplemented => {
-                                            warn!("Request type not implemented")
-                                        },
-                                        MessageHandlingErrorKind::Unauthorized => {
-                                            let _ = context_clone.socket_mut().await.shutdown().await;
-                                            return
+                            let context = context_clone.clone();
+                            let reqwest_client = reqwest_clone.clone();
+                            let user = user_clone.clone();
+                            tokio::spawn(async move {
+                                match handle_message(&context, user, &reqwest_client, payload).await {
+                                    Ok(res) => {
+                                        if let Err(err) = context.socket_write_mut().await.write_all(&res).await {
+                                            error!("Failed to write response {err}");
                                         }
-                                        _ => {
-                                            error!("There was an error when handling the message {:?}", err);
+                                    },
+                                    Err(err) => {
+                                        match err.kind {
+                                            MessageHandlingErrorKind::Ignored => (),
+                                            MessageHandlingErrorKind::NotImplemented => {
+                                                warn!("Request type not implemented")
+                                            },
+                                            MessageHandlingErrorKind::Unauthorized => {
+                                                error!("Unathorized error {:?}", err);
+                                                let _ = context.socket_write_mut().await.shutdown().await;
+                                            }
+                                            _ => {
+                                                error!("There was an error when handling the message {:?}", err);
+                                            }
                                         }
                                     }
                                 }
-                            }
+                            });
                         },
                         Err(err) => {
                             if err.kind() == tokio::io::ErrorKind::UnexpectedEof {
@@ -112,7 +116,7 @@ pub async fn entry_point(
                         OverlayPeerMessage::VisibilityChange(visible) => {
                             if let Ok(res) = overlay_peer::encode_visibility_change(visible).await {
                                 log::debug!("Notifying about visibility change to game");
-                                if let Err(err) = context_clone.socket_mut().await.write_all(&res).await {
+                                if let Err(err) = context_clone.socket_write_mut().await.write_all(&res).await {
                                     error!("Failed to notify game of overlay visibility {err}");
                                 }
                             }
@@ -120,7 +124,7 @@ pub async fn entry_point(
                         OverlayPeerMessage::GameJoin(join_data) => {
                             if let Ok(res) = overlay_peer::encode_game_join(join_data).await {
                                 log::debug!("Sending game join invite to game");
-                                if let Err(err) = context_clone.socket_mut().await.write_all(&res).await {
+                                if let Err(err) = context_clone.socket_write_mut().await.write_all(&res).await {
                                     error!("Failed to send game join event to the game {err}");
                                 }
                             }
@@ -139,7 +143,7 @@ pub async fn entry_point(
                         },
                         Ok(PusherEvent::Topic(message, topic)) => {
                             if context_clone.is_subscribed(&topic).await {
-                                if let Err(err) = context_clone.socket_mut().await.write_all(message.as_slice()).await {
+                                if let Err(err) = context_clone.socket_write_mut().await.write_all(message.as_slice()).await {
                                     error!("Failed to forward topic message to socket {}", err);
                                 }
                                 debug!("Forwarded topic message");
