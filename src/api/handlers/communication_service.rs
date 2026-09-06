@@ -541,6 +541,8 @@ async fn get_user_achievements(
             let parsed_date: chrono::DateTime<Utc> = date.parse().unwrap();
             let timestamp = parsed_date.timestamp() as u32;
             proto_achievement.set_unlock_time(timestamp);
+        } else {
+            proto_achievement.set_unlock_time(0);
         }
         content.user_achievements.push(proto_achievement);
     }
