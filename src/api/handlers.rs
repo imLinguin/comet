@@ -9,7 +9,7 @@ mod webbroker;
 
 use crate::{constants::TokenStorage, proto::common_utils::ProtoPayload};
 use error::*;
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 use crate::api::gog;
 use crate::api::notification_pusher::PusherEvent;
@@ -72,7 +72,6 @@ pub async fn entry_point(
                             tokio::spawn(async move {
                                 match handle_message(&context, user, &reqwest_client, payload).await {
                                     Ok(res) => {
-                                        tokio::time::sleep(Duration::from_secs(2)).await;
                                         if let Err(err) = context.socket_write_mut().await.write_all(&res).await {
                                             error!("Failed to write response {err}");
                                         }
