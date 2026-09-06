@@ -8,6 +8,7 @@ use derive_getters::Getters;
 use sqlx::SqlitePool;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 use tokio::net::TcpStream;
+use tokio::net::tcp::{OwnedReadHalf, OwnedWriteHalf};
 use tokio::sync::{Mutex, MutexGuard, broadcast};
 
 pub struct State {
@@ -26,7 +27,8 @@ pub struct State {
 
 #[derive(Getters)]
 pub struct HandlerContext {
-    socket: Mutex<TcpStream>,
+    socket_read: Mutex<OwnedReadHalf>,
+    socket_write: Mutex<OwnedWriteHalf>,
     token_store: TokenStorage,
     overlay_sender: broadcast::Sender<(u32, OverlayPeerMessage)>,
     #[getter(skip)]
@@ -43,6 +45,7 @@ impl HandlerContext {
         token_store: TokenStorage,
         achievement_sender: broadcast::Sender<(u32, OverlayPeerMessage)>,
     ) -> Self {
+        let (socket_read, socket_write) = socket.into_split();
         let state = Mutex::new(State {
             is_online: false,
             client_identified: false,
@@ -57,7 +60,8 @@ impl HandlerContext {
             pid: 0,
         });
         Self {
-            socket: Mutex::new(socket),
+            socket_read: Mutex::new(socket_read),
+            socket_write: Mutex::new(socket_write),
             token_store,
             overlay_sender: achievement_sender,
             db_connection: Mutex::new(None),
@@ -66,12 +70,16 @@ impl HandlerContext {
         }
     }
 
-    pub async fn socket_mut(&self) -> MutexGuard<'_, TcpStream> {
-        self.socket.lock().await
+    pub async fn socket_write_mut(&self) -> MutexGuard<'_, OwnedWriteHalf> {
+        self.socket_write.lock().await
+    }
+
+    pub async fn socket_read_mut(&self) -> MutexGuard<'_, OwnedReadHalf> {
+        self.socket_read.lock().await
     }
 
     pub async fn socket_read_u16(&self) -> Result<u16, std::io::Error> {
-        self.socket.lock().await.read_u16().await
+        self.socket_read.lock().await.read_u16().await
     }
 
     pub async fn identify_client(&self, client_id: &str, client_secret: &str, pid: u32) {

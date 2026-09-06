@@ -235,8 +235,7 @@ impl NotificationPusherClient {
                                         .try_into()
                                         .unwrap(),
                                 );
-                                let mut oseq = 1020;
-                                for topic in [
+                                for (oseq, topic) in (1000..).zip([
                                     "friends",
                                     "presence",
                                     "chat",
@@ -248,14 +247,13 @@ impl NotificationPusherClient {
                                     "user_notification:removed",
                                     "external_users",
                                     "external_accounts",
-                                ] {
+                                ]) {
                                     let mut message_buffer: Vec<u8> = Vec::new();
                                     let mut request_data = SubscribeTopicRequest::new();
                                     request_data.set_topic(String::from(topic));
                                     let payload = request_data.write_to_bytes().unwrap();
                                     header.set_size(payload.len().try_into().unwrap());
                                     header.set_oseq(oseq);
-                                    oseq += 1;
                                     let header_buf = header.write_to_bytes().unwrap();
 
                                     let header_size: u16 = header_buf.len().try_into().unwrap();

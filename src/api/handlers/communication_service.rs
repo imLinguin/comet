@@ -197,7 +197,7 @@ async fn auth_info_request(
         buffer.extend(header_size.to_be_bytes());
         buffer.extend(header_buf);
         buffer.extend(data_buf);
-        let _ = context.socket_mut().await.write_all(&buffer).await;
+        let _ = context.socket_write_mut().await.write_all(&buffer).await;
     }
 
     // Use new refresh_token to prepare response
@@ -259,8 +259,7 @@ async fn get_user_stats(
         &user_info.galaxy_user_id,
         reqwest_client,
     );
-    let db_stats =
-        db::gameplay::get_statistics(context, false).map_err(|err| MessageHandlingError::db(err));
+    let db_stats = db::gameplay::get_statistics(context, false).map_err(MessageHandlingError::db);
 
     let stats = if stats_refreshed {
         db_stats.or_else(|_| new_stats).await
@@ -489,7 +488,7 @@ async fn get_user_achievements(
     );
 
     let local_achievements =
-        db::gameplay::get_achievements(context, false).map_err(|err| MessageHandlingError::db(err));
+        db::gameplay::get_achievements(context, false).map_err(MessageHandlingError::db);
 
     let ach_res = if achievements_refreshed {
         local_achievements.or_else(|_| online_achievements).await
