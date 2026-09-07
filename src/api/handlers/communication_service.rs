@@ -359,7 +359,9 @@ async fn get_user_stats(
         content.user_stats.push(proto_stat);
     }
     let content_buffer = content.write_to_bytes().unwrap();
-    header.set_size(content_buffer.len().try_into().unwrap());
+    if !content_buffer.is_empty() {
+        header.set_size(content_buffer.len().try_into().unwrap());
+    }
 
     Ok(ProtoPayload {
         header,
@@ -541,14 +543,14 @@ async fn get_user_achievements(
             let parsed_date: chrono::DateTime<Utc> = date.parse().unwrap();
             let timestamp = parsed_date.timestamp() as u32;
             proto_achievement.set_unlock_time(timestamp);
-        } else {
-            proto_achievement.set_unlock_time(0);
         }
         content.user_achievements.push(proto_achievement);
     }
 
     let content_buffer = content.write_to_bytes().unwrap();
-    header.set_size(content_buffer.len().try_into().unwrap());
+    if !content_buffer.is_empty() {
+        header.set_size(content_buffer.len().try_into().unwrap());
+    }
 
     Ok(ProtoPayload {
         header,
@@ -833,7 +835,9 @@ async fn set_leaderboard_score(
             let payload = proto_data
                 .write_to_bytes()
                 .map_err(MessageHandlingError::proto)?;
-            header.set_size(payload.len().try_into().unwrap());
+            if !payload.is_empty() {
+                header.set_size(payload.len().try_into().unwrap());
+            }
             return Ok(ProtoPayload { header, payload });
         }
         Err(err) => {
