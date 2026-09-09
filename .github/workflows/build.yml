@@ -15,7 +15,7 @@ jobs:
   build-dummy:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install meson
         run: python -m pip install meson ninja
       - name: Setup
@@ -30,7 +30,7 @@ jobs:
         shell: bash
         working-directory: ./dummy-service
         run: 7z a ../dummy-service.zip ./*.{exe,bat}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dummy-GalaxyCommunication.exe
           path: |
@@ -53,7 +53,7 @@ jobs:
       (contains(matrix.target, 'pc-windows') && 'windows-latest') }}
     needs: build-dummy
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           submodules: "recursive"
       - if: ${{ matrix.target == 'aarch64-unknown-linux-gnu' }}
@@ -61,10 +61,19 @@ jobs:
         run: sudo apt install gcc-aarch64-linux-gnu
       - name: Setup target
         run: rustup target add ${{ matrix.target }}
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ matrix.target }}-cargo-${{ hashFiles('**/Cargo.lock') }}
       - name: Build
         run: cargo build --verbose --release --target ${{ matrix.target }}
       - name: Download dummy service for packaging
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dummy-GalaxyCommunication.exe
           path: .
@@ -80,7 +89,7 @@ jobs:
           7z rn steam-deck.zip comet-x86_64-unknown-linux-gnu comet
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: comet-${{ matrix.target }}
           path: | 
@@ -95,7 +104,7 @@ jobs:
     needs: build
     steps:
       - name: Download builds
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           merge-multiple: true
 
