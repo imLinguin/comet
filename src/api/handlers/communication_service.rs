@@ -178,7 +178,7 @@ async fn auth_info_request(
     {
         let mut data = OverlayStateChangeNotification::new();
         data.set_overlay_state(
-            overlay_state_change_notification::OverlayState::OVERLAY_STATE_INITIALIZED,
+            overlay_state_change_notification::OverlayState::OVERLAY_STATE_DISABLED,
         );
         let data_buf = data.write_to_bytes().unwrap();
         let mut header = Header::new();
