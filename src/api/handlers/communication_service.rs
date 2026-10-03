@@ -71,6 +71,8 @@ pub async fn entry_point(
         create_leaderboard(payload, context, user_info, reqwest_client).await
     } else if message_type == MessageType::START_GAME_SESSION_REQUEST.value() {
         start_game_session(payload, context, user_info, reqwest_client).await
+    } else if message_type == MessageType::GET_USER_TIME_PLAYED_REQUEST.value() {
+        get_user_time_played(payload, context, user_info, reqwest_client).await
     } else {
         warn!(
             "Unhandled communication service message type {}",
@@ -980,4 +982,57 @@ async fn start_game_session(
         header,
         payload: vec![],
     })
+}
+
+async fn get_user_time_played(
+    proto_payload: &ProtoPayload,
+    context: &HandlerContext,
+    user_info: Arc<UserInfo>,
+    reqwest_client: &Client,
+) -> Result<ProtoPayload, MessageHandlingError> {
+    let request = GetUserTimePlayedRequest::parse_from_bytes(&proto_payload.payload)
+        .map_err(MessageHandlingError::proto)?;
+    let client_id = context.client_id().await.unwrap();
+
+    info!("Requested user time for {}", request.user_id());
+
+    if user_info.galaxy_user_id != request.user_id().to_string() {
+        log::warn!("Time was requested for not a current user??");
+    }
+
+    let api_time = gog::sessions::fetch_sessions(
+        context.token_store(),
+        &client_id,
+        &user_info.galaxy_user_id,
+        reqwest_client,
+    )
+    .await;
+
+    let session_time = match api_time {
+        Ok(time) => {
+            let _ = db::gameplay::set_session_time(context, time).await;
+            time
+        }
+        Err(err) => {
+            log::error!("Unable to request sessions sum");
+            let time = db::gameplay::get_session_time(context)
+                .await
+                .map_err(MessageHandlingError::db)?;
+            time
+        }
+    };
+
+    let mut header = Header::new();
+    header.set_type(
+        MessageType::GET_USER_TIME_PLAYED_RESPONSE
+            .value()
+            .try_into()
+            .unwrap(),
+    );
+    let mut res = GetUserTimePlayedResponse::new();
+    res.set_time_played(session_time);
+
+    let payload = res.write_to_bytes().map_err(MessageHandlingError::proto)?;
+
+    Ok(ProtoPayload { header, payload })
 }

@@ -652,3 +652,32 @@ pub async fn set_leaderboard_rank(
 
     Ok(())
 }
+
+pub async fn get_session_time(context: &HandlerContext) -> Result<u32, Error> {
+    let mut connection = context.db_connection().await.acquire().await?;
+
+    let res = sqlx::query("SELECT time_played FROM game_info")
+        .fetch_one(&mut *connection)
+        .await?;
+
+    let value: i64 = res.try_get(0)?;
+    Ok(value as u32)
+}
+
+pub async fn set_session_time(context: &HandlerContext, time_sum: u32) -> Result<(), Error> {
+    let mut connection = context.db_connection().await.acquire().await?;
+
+    let res = sqlx::query("UPDATE game_info SET time_played=$1")
+        .bind(time_sum)
+        .execute(&mut *connection)
+        .await?;
+
+    if res.rows_affected() == 0 {
+        sqlx::query("INSERT INTO game_info VALUES ($1)")
+            .bind(time_sum)
+            .execute(&mut *connection)
+            .await?;
+    }
+
+    Ok(())
+}

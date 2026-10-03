@@ -35,6 +35,7 @@ Project is continuation of Yepoleb's work https://gitlab.com/Yepoleb/comet/ but 
 - [x] GET_LEADERBOARD_ENTRIES_FOR_USERS_REQUEST
 - [x] SET_LEADERBOARD_SCORE_REQUEST
 - [x] CREATE_LEADERBOARD_REQUEST
+- [x] GET_USER_TIME_PLAYED_REQUEST
 - [ ] GET_GLOBAL_STATS_REQUEST
 
 ### Overlay
