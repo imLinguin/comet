@@ -175,8 +175,28 @@ pub async fn entry_point(
         };
 
         #[cfg(unix)]
-        let Ok(overlay_listener) = tokio::net::UnixListener::bind(&pipe_name) else {
-            return;
+        let overlay_listener = {
+            // A session that was killed rather than shut down never reaches the
+            // cleanup below, so its socket file outlives it and bind() then fails
+            // with EADDRINUSE. Wine hands out the same game pid on every launch,
+            // so the path is identical each time and the overlay would never come
+            // up again until the file is removed by hand.
+            if tokio::fs::metadata(&pipe_name).await.is_ok()
+                && tokio::net::UnixStream::connect(&pipe_name).await.is_err()
+            {
+                warn!("Removing stale overlay socket at {pipe_name}");
+                if let Err(err) = tokio::fs::remove_file(&pipe_name).await {
+                    error!("Failed to remove stale overlay socket {pipe_name}: {err}");
+                }
+            }
+
+            match tokio::net::UnixListener::bind(&pipe_name) {
+                Ok(listener) => listener,
+                Err(err) => {
+                    error!("Failed to bind overlay socket {pipe_name}: {err}");
+                    return;
+                }
+            }
         };
 
         #[cfg(windows)]
