@@ -176,6 +176,18 @@ enabled = true
 sound= true
 ```
 
+### Custom events
+
+You can also specify custom events that comet will POST to specified url.  
+You can do it with top-level `custom_event` array
+
+
+```toml
+[[custom_event]]
+enabled = true
+url = "http://127.0.0.1:9970/my_cool_event?my_cool_url_param=my_cool_value"
+```
+
 ## Contributing
 
 Join [Heroic Discord](https://discord.gg/rHJ2uqdquK) and reach out to us on
