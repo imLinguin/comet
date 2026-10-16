@@ -136,7 +136,7 @@ pub async fn update_stat(
 
     let url = format!(
         "https://gameplay.gog.com/clients/{}/users/{}/stats/{}",
-        &client_id,
+        client_id,
         user_id,
         stat.stat_id()
     );
@@ -180,7 +180,7 @@ pub async fn delete_stats(
 
     let url = format!(
         "https://gameplay.gog.com/clients/{}/users/{}/stats",
-        &client_id, user_id,
+        client_id, user_id,
     );
 
     let response = reqwest_client

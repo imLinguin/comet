@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use std::time::Duration;
+
 use crate::api::gog;
 use crate::api::gog::achievements::Achievement;
 use crate::api::gog::leaderboards::get_leaderboards_entries;
@@ -5,6 +8,7 @@ use crate::api::gog::overlay::OverlayPeerMessage;
 use crate::api::handlers::context::HandlerContext;
 use crate::api::handlers::error::{MessageHandlingError, MessageHandlingErrorKind};
 use crate::api::structs::IDType;
+use crate::custom_event::{CustomEvent, CustomEventType};
 use crate::db;
 use base64::prelude::*;
 use log::warn;
@@ -181,8 +185,8 @@ where
 
 pub async fn unlock_achievement(
     context: &HandlerContext,
-    mut achievement: Achievement,
-    timestamp_string: Option<String>,
+    reqwest_client: reqwest::Client,
+    achievement: Arc<Achievement>,
 ) {
     log::info!(
         "Unlocking achievement {}, {}",
@@ -193,15 +197,46 @@ pub async fn unlock_achievement(
     db::gameplay::set_achievement(
         context,
         achievement.achievement_id().parse().unwrap(),
-        timestamp_string.clone(),
+        achievement.date_unlocked.clone(),
     )
     .await
     .expect("Failed to write achievement to database");
 
     context.set_updated_achievements(true).await;
-    achievement.date_unlocked = timestamp_string;
     let pid = context.get_pid().await;
+    super::utils::send_custom_events(
+        context.client_id().await.unwrap_or_default(),
+        reqwest_client.clone(),
+        achievement.clone(),
+    );
     let _ = context
         .overlay_sender()
-        .send((pid, OverlayPeerMessage::Achievement(achievement.clone())));
+        .send((pid, OverlayPeerMessage::Achievement(achievement)));
+}
+
+pub fn send_custom_events(
+    client_id: String,
+    reqwest_client: reqwest::Client,
+    achievement: Arc<Achievement>,
+) {
+    let event = CustomEvent {
+        name: CustomEventType::AchievementUnlocked,
+        client_id,
+        data: achievement,
+    };
+    let body = serde_json::to_string(&event).unwrap();
+    for cfg in crate::CONFIG.custom_event.iter().filter(|e| e.enabled) {
+        let url = cfg.url.clone();
+        let reqwest_client = reqwest_client.clone();
+        let body = body.clone();
+        tokio::spawn(async move {
+            let _ = reqwest_client
+                .post(url)
+                .header("Content-Type", "application/json")
+                .body(body)
+                .timeout(Duration::from_secs(10))
+                .send()
+                .await;
+        });
+    }
 }

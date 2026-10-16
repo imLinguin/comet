@@ -5,6 +5,7 @@ use std::fs;
 #[serde(default)]
 pub struct Configuration {
     pub overlay: OverlayConfiguration,
+    pub custom_event: Vec<CustomEvent>,
 }
 
 #[derive(Deserialize, Debug)]
@@ -24,6 +25,12 @@ impl Default for OverlayConfiguration {
             notifications: Default::default(),
         }
     }
+}
+
+#[derive(Deserialize, Default, Debug)]
+pub struct CustomEvent {
+    pub enabled: bool,
+    pub url: String,
 }
 
 #[derive(Deserialize, Default, Debug)]

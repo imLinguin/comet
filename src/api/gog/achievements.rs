@@ -6,7 +6,7 @@ use derive_getters::Getters;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Debug, Clone, Getters)]
+#[derive(Deserialize, Serialize, Debug, Clone, Getters)]
 pub struct Achievement {
     pub achievement_id: String,
     pub achievement_key: String,
@@ -127,7 +127,7 @@ pub async fn set_achievement(
     };
     let url = format!(
         "https://gameplay.gog.com/clients/{}/users/{}/achievements/{}",
-        &client_id, user_id, achievement_id
+        client_id, user_id, achievement_id
     );
     let body = SetAchievementRequest::new(date_unlocked);
 
@@ -163,7 +163,7 @@ pub async fn delete_achievements(
     };
     let url = format!(
         "https://gameplay.gog.com/clients/{}/users/{}/achievements",
-        &client_id, user_id
+        client_id, user_id
     );
 
     let response = reqwest_client

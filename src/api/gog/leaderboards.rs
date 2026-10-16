@@ -62,7 +62,7 @@ where
     };
     let url = format!(
         "https://gameplay.gog.com/clients/{}/leaderboards",
-        &client_id
+        client_id
     );
 
     let new_url = Url::parse_with_params(&url, params).unwrap();
@@ -123,7 +123,7 @@ where
 
     let url = format!(
         "https://gameplay.gog.com/clients/{}/leaderboards/{}/entries",
-        &client_id, leaderboard_id
+        client_id, leaderboard_id
     );
 
     let new_url = Url::parse_with_params(&url, params).unwrap();
@@ -180,7 +180,7 @@ pub async fn post_leaderboard_score(
 
     let url = format!(
         "https://gameplay.gog.com/clients/{}/users/{}/leaderboards/{}",
-        &client_id, user_id, leaderboard_id
+        client_id, user_id, leaderboard_id
     );
 
     let payload = LeaderboardScoreUpdate {

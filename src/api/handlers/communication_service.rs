@@ -262,7 +262,7 @@ async fn get_user_stats(
         reqwest_client,
     );
     let db_stats =
-        db::gameplay::get_statistics(context, false).map_err(|err| MessageHandlingError::db(err));
+        db::gameplay::get_statistics(context, false).map_err(MessageHandlingError::db);
 
     let stats = if stats_refreshed {
         db_stats.or_else(|_| new_stats).await
@@ -374,7 +374,7 @@ async fn update_user_stat(
     proto_payload: &ProtoPayload,
     context: &HandlerContext,
     _user_info: Arc<UserInfo>,
-    _reqwest_client: &Client,
+    reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request_data = UpdateUserStatRequest::parse_from_bytes(&proto_payload.payload);
     let request_data = request_data.map_err(MessageHandlingError::proto)?;
@@ -422,7 +422,7 @@ async fn update_user_stat(
                 continue;
             }
             // Unlock achievement
-            if let Some(achievement) =
+            if let Some(mut achievement) =
                 db::gameplay::get_achievement_by_key(context, workaround.achievement_key)
                     .await
                     .ok()
@@ -430,7 +430,14 @@ async fn update_user_stat(
             {
                 let dt = Utc::now();
                 let timestamp_string = Some(dt.to_rfc3339_opts(chrono::SecondsFormat::Secs, false));
-                super::utils::unlock_achievement(context, achievement, timestamp_string).await;
+                achievement.date_unlocked = timestamp_string;
+                let achievement = Arc::new(achievement);
+                super::utils::unlock_achievement(
+                    context,
+                    reqwest_client.clone(),
+                    achievement.clone(),
+                )
+                .await;
             }
         }
     }
@@ -491,7 +498,7 @@ async fn get_user_achievements(
     );
 
     let local_achievements =
-        db::gameplay::get_achievements(context, false).map_err(|err| MessageHandlingError::db(err));
+        db::gameplay::get_achievements(context, false).map_err(MessageHandlingError::db);
 
     let ach_res = if achievements_refreshed {
         local_achievements.or_else(|_| online_achievements).await
@@ -561,7 +568,7 @@ async fn unlock_user_achievement(
     proto_payload: &ProtoPayload,
     context: &HandlerContext,
     _user_info: Arc<UserInfo>,
-    _reqwest_client: &Client,
+    reqwest_client: &Client,
 ) -> Result<ProtoPayload, MessageHandlingError> {
     let request_data = UnlockUserAchievementRequest::parse_from_bytes(&proto_payload.payload);
     let request_data = request_data.map_err(MessageHandlingError::proto)?;
@@ -578,7 +585,10 @@ async fn unlock_user_achievement(
         .expect("Failed to read database");
 
     if achievement.date_unlocked().is_none() {
-        super::utils::unlock_achievement(context, achievement, timestamp_string).await;
+        let mut achievement = achievement;
+        achievement.date_unlocked = timestamp_string;
+        let achievement = Arc::new(achievement);
+        super::utils::unlock_achievement(context, reqwest_client.clone(), achievement).await;
     }
 
     let mut header = Header::new();
@@ -1014,11 +1024,10 @@ async fn get_user_time_played(
             time
         }
         Err(err) => {
-            log::error!("Unable to request sessions sum");
-            let time = db::gameplay::get_session_time(context)
+            log::error!("Unable to request sessions sum {err}");
+            db::gameplay::get_session_time(context)
                 .await
-                .map_err(MessageHandlingError::db)?;
-            time
+                .map_err(MessageHandlingError::db)?
         }
     };
 

@@ -253,7 +253,7 @@ pub async fn entry_point(
                     let data: Result<Vec<u8>, Box<dyn std::error::Error + Send + Sync>> = match msg {
                         OverlayPeerMessage::Achievement(achievement) =>
                             if crate::CONFIG.overlay.notifications.achievements.enabled {
-                                overlay_service::achievement_notification(achievement).await
+                                overlay_service::achievement_notification((*achievement).clone()).await
                             } else {
                                 Err(MessageHandlingError::ignored().into())
                             },
