@@ -153,27 +153,27 @@ enabled = true
 # Controls chat message notifications
 [overlay.notifications.chat]
 enabled = true
-sound= true
+sound = true
 
 # Controls notifications when friend becomes online
 [overlay.notifications.friend_online]
 enabled = true
-sound= true
+sound = true
 
 # Controls notifications when someone sends you a friend invititation
 [overlay.notifications.friend_invite]
 enabled = true
-sound= true
+sound = true
 
 # Controls notifications when friend starts playing a game
 [overlay.notifications.friend_game_start]
 enabled = true
-sound= true
+sound = true
 
 # Controls notifications when someone sends you a game invite
 [overlay.notifications.game_invite]
 enabled = true
-sound= true
+sound = true
 ```
 
 ### Custom events
@@ -187,6 +187,26 @@ You can do it with top-level `custom_event` array
 enabled = true
 url = "http://127.0.0.1:9970/my_cool_event?my_cool_url_param=my_cool_value"
 ```
+
+The payload is a JSON structure in the following format
+
+```json
+{
+    "name": "event_type",
+    "client_id": "APP_CLIENT_ID",
+    "data": {
+        /* EVENT SPECIFIC DATA */
+    }
+}
+```
+
+At the moment comet supports following events.
+
+| Name | Data structure |
+| ---- | ------- |
+| achievement_unlocked | [Achievement](./src/api/gog/achievements.rs#L9-L22) |
+
+
 
 ## Contributing
 
