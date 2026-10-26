@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use crate::api::gog::overlay::OverlayPeerMessage;
 use crate::constants::TokenStorage;
-use crate::workarounds::StatAchievementWorkaround;
+use crate::workarounds::{QuotedSplit, StatAchievementWorkaround};
 use crate::{db, paths};
 use derive_getters::Getters;
 use sqlx::SqlitePool;
@@ -126,7 +126,7 @@ impl HandlerContext {
         let mut lines = reader.lines();
         let mut stat_list: Vec<StatAchievementWorkaround> = Vec::new();
         while let Ok(Some(line)) = lines.next_line().await {
-            let mut keys = line.split(" ");
+            let mut keys = QuotedSplit::new(&line);
             let achievement_key = keys.next();
             let stat_key = keys.next();
             let stat_threshold = keys.next();
