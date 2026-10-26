@@ -37,3 +37,33 @@ sound= true
 enabled = true
 sound= true
 ```
+
+### Custom events
+
+You can also specify custom events that comet will POST to specified url.  
+You can do it with top-level `custom_event` array
+
+
+```toml
+[[custom_event]]
+enabled = true
+url = "http://127.0.0.1:9970/my_cool_event?my_cool_url_param=my_cool_value"
+```
+
+The payload is a JSON structure in the following format
+
+```json
+{
+    "name": "event_type",
+    "client_id": "APP_CLIENT_ID",
+    "data": {
+        /* EVENT SPECIFIC DATA */
+    }
+}
+```
+
+At the moment comet supports following events.
+
+| Name | Data structure |
+| ---- | ------- |
+| achievement_unlocked | [Achievement](./src/api/gog/achievements.rs#L9-L22) |

@@ -21,7 +21,7 @@ Workarounds directory locations:
 - Linux - `$XDG_DATA_HOME/comet/workarounds`
 
 You will neeed to create a text file named `<CLIENT_ID>.progress`
-You can obtain the CLIENT_ID from build information on gogdb.org
+You can obtain the CLIENT_ID from build information on gogdb.org. For example for [Cyberpunk 2077](https://www.gogdb.org/product/1423049311/build/60152385347545148) the CLIENT_ID value is `53652320436400298`
 
 The contents should follow this schema
 
@@ -44,3 +44,8 @@ Playing_With_Fire Burn_Damage_Dealt 250
 ```
 
 This schema is based on GOG's Steam SDK Wrapper achievement file - which is an undocumented feature, but is often used in pair with games.
+
+### Formating notes 
+
+- Floating point values need to use a `.` as decimal separator.
+- Keys that countain spaces can be wrapped in quotes - `"`

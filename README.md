@@ -206,7 +206,9 @@ At the moment comet supports following events.
 | ---- | ------- |
 | achievement_unlocked | [Achievement](./src/api/gog/achievements.rs#L9-L22) |
 
+## Workarounds
 
+See the wiki for details.
 
 ## Contributing
 
