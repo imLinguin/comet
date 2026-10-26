@@ -66,4 +66,4 @@ At the moment comet supports following events.
 
 | Name | Data structure |
 | ---- | ------- |
-| achievement_unlocked | [Achievement](./src/api/gog/achievements.rs#L9-L22) |
+| achievement_unlocked | [Achievement](https://github.com/imLinguin/comet/tree/78243e8c69a40acd16607f3b8c41047a84cd843b/src/api/gog/achievements.rs#L9-L22) |
