@@ -1,6 +1,3 @@
-> [!NOTE]
-> This functionality is not shipped as a release yet. It's available in nightly build from main branch CI.
-
 ## What are workarounds?
 
 Workarounds aim to provide fixes for games with bad GOG implementation.
