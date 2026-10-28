@@ -107,7 +107,7 @@ impl NotificationPusherClient {
         buffer.extend(header_data);
         buffer.extend(request_body);
 
-        let message = tungstenite::Message::Binary(buffer);
+        let message = tungstenite::Message::Binary(buffer.into());
 
         ws_stream.send(message).await?;
 
@@ -131,7 +131,7 @@ impl NotificationPusherClient {
                         if pending_ping {
                             // Send offline status to contexts
                             if let Err(err) = self.topic_sender.send(PusherEvent::Offline) {
-                                warn!("Failed to send offline event to contexts {}", err.to_string());
+                                warn!("Failed to send offline event to contexts {}", err);
                             }
                             break
                         }
@@ -151,7 +151,7 @@ impl NotificationPusherClient {
                         message.extend(header_buffer);
                         message.extend(content_buffer);
 
-                        let ws_message = tungstenite::Message::Ping(message);
+                        let ws_message = tungstenite::Message::Ping(message.into());
                         if let Err(err) = self.pusher_connection.send(ws_message).await {
                             warn!("Pusher ping failed {:?}", err);
                             break;
@@ -180,7 +180,7 @@ impl NotificationPusherClient {
                 debug!("Received a message");
                 if message.is_binary() {
                     let msg_data = message.into_data();
-                    let proto_message = NotificationPusherClient::parse_message(&msg_data);
+                    let proto_message = NotificationPusherClient::parse_message(&msg_data.to_vec());
                     let parsed_message = match proto_message {
                         Ok(message) => message,
                         Err(err) => {
@@ -248,7 +248,7 @@ impl NotificationPusherClient {
                                     message_buffer.extend(header_buf);
                                     message_buffer.extend(payload);
 
-                                    let new_message = tungstenite::Message::Binary(message_buffer);
+                                    let new_message = tungstenite::Message::Binary(message_buffer.into());
                                     if let Err(error) =
                                         self.pusher_connection.feed(new_message).await
                                     {
@@ -285,7 +285,7 @@ impl NotificationPusherClient {
                             log::debug!("Topic message: {:#?}", String::from_utf8_lossy(&msg_data));
                             if let Err(error) = self
                                 .topic_sender
-                                .send(PusherEvent::Topic(msg_data, msg.topic().to_owned()))
+                                .send(PusherEvent::Topic(msg_data.to_vec(), msg.topic().to_owned()))
                             {
                                 error!(
                                     "There was an error when forwarding topic message: {}",
@@ -302,7 +302,7 @@ impl NotificationPusherClient {
                     if let Err(err) = self.topic_sender.send(PusherEvent::Online) {
                         warn!(
                             "Failed to notify handlers about going online {}",
-                            err.to_string()
+                            err
                         );
                     }
                 }
