@@ -1,7 +1,6 @@
 use futures_util::{SinkExt, StreamExt};
 use log::{debug, error, info, warn};
 use protobuf::{Enum, Message, UnknownValueRef};
-use std::sync::Arc;
 use tokio::net::TcpStream;
 use tokio::sync::broadcast::Sender;
 use tokio::time;
@@ -20,18 +19,6 @@ use crate::proto::{
     },
     gog_protocols_pb::Header,
 };
-
-lazy_static! {
-    static ref TLS_CONFIG: Arc<rustls::ClientConfig> = Arc::new({
-        let mut root_store = rustls::RootCertStore::empty();
-        let mut reader = std::io::BufReader::new(crate::CERT);
-        let certs = rustls_pemfile::certs(&mut reader).filter_map(|crt| crt.ok());
-        root_store.add_parsable_certificates(certs);
-        rustls::ClientConfig::builder()
-            .with_root_certificates(root_store)
-            .with_no_client_auth()
-    });
-}
 
 #[derive(Clone)]
 pub enum PusherEvent {
@@ -90,12 +77,11 @@ impl NotificationPusherClient {
     async fn init_connection(
         access_token: &String,
     ) -> Result<WebSocketStream<MaybeTlsStream<TcpStream>>, tungstenite::Error> {
-        let tls_connector = tokio_tungstenite::Connector::Rustls(TLS_CONFIG.clone());
         let (mut ws_stream, _) = connect_async_tls_with_config(
             crate::constants::NOTIFICATIONS_PUSHER_SOCKET,
             None,
             false,
-            Some(tls_connector),
+            None,
         )
         .await?;
         info!("Connected to notifications-pusher");

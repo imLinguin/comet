@@ -10,8 +10,6 @@ pub mod paths;
 pub mod proto;
 pub mod workarounds;
 
-pub static CERT: &[u8] = include_bytes!("../external/rootCA.pem");
-
 lazy_static! {
     pub static ref CONFIG: config::Configuration = config::load_config().unwrap_or_default();
     pub static ref LOCALE: String = sys_locale::get_locale()

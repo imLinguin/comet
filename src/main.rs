@@ -109,10 +109,8 @@ async fn main() {
     let (access_token, refresh_token, galaxy_user_id) =
         import_parsers::handle_credentials_import(&args);
 
-    let certificate = reqwest::tls::Certificate::from_pem(comet::CERT).unwrap();
     let reqwest_client = Client::builder()
         .user_agent(format!("GOGGalaxyCommunicationService/2.0.13.27 (Windows_32bit) installation_source/gog Comet/{}", env!("CARGO_PKG_VERSION")))
-        .add_root_certificate(certificate)
         .build()
         .expect("Failed to build reqwest client");
 

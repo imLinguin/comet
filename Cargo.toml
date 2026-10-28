@@ -8,7 +8,7 @@ authors = ["Paweł Lidwin <linguin@tutanota.com>"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-reqwest = { version = "0.12", features = ["http2", "charset", "macos-system-configuration", "json", "rustls-tls-manual-roots", "stream"], default-features = false }
+reqwest = { version = "0.13", features = ["json", "stream"]}
 tokio = { version = "1", features = ["full"] }
 tokio-util = { version = "0.7.10", features = ["compat"] }
 tokio-tungstenite = { version = "0.21", features = ["__rustls-tls"] }
@@ -23,8 +23,6 @@ sqlx = { version = "0.7", features = [ "runtime-tokio", "sqlite" ] }
 lazy_static = "1.4.0"
 derive-getters = "0.3.0"
 chrono = "0.4.33"
-rustls = "0.22"
-rustls-pemfile = "2.1.1"
 async_zip = { version = "0.0.17", features = ["tokio", "deflate"] }
 base64 = "0.22.0"
 serde_ini = "0.2.0"
